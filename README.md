@@ -11,6 +11,10 @@
 ![싱크홀](https://github.com/user-attachments/assets/2bb15261-53e8-4853-96f5-141e838f372c)
 ![싱크홀](https://github.com/user-attachments/assets/f524d311-e47c-489c-86e3-199e68584d45)
 
+[ 기능 구성요소 ]
+1. 싱크홀 안전도 등급에 따른 행정구 위험도 시각화 (기준치는 검토중)
+2. 행정구에 따른 지도 위치 이동 검색 기능
+3. 실시간 싱크홀 발생 공지사항으로 시각화
 
 [ 역할 분담 ]
 
