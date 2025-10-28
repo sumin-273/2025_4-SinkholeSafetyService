@@ -10,6 +10,4 @@ Abstract
 
 Team roles & development areas (팀원 역할 분담)
 
-하준서 – 백엔드(Node.js, Express)
-문은서 – 프론트엔드(EJS, Bootstrap), 백엔드 보조(API 연동)
-곽수민 – 프론트엔드(EJS, Bootstrap, 디자인)
+하준서 – 백엔드(Node.js, Express), 문은서 – 프론트엔드(EJS, Bootstrap) / 백엔드 보조(API 연동), 곽수민 – 프론트엔드(EJS, Bootstrap, 디자인)
