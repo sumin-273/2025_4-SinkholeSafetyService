@@ -1,0 +1,16 @@
+[
+    {
+        "id": "n1",
+        "title": "명일동 도로 함몰 복구 안내",
+        "source": "강동구청",
+        "link": "https://example.com/1",
+        "pubDate": "2025-11-01T01:00:00Z"
+    },
+    {
+        "id": "n2",
+        "title": "서교동 지반침하 점검 공지",
+        "source": "마포구청",
+        "link": "https://example.com/2",
+        "pubDate": "2025-11-02T05:30:00Z"
+    }
+]
