@@ -1,26 +1,50 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+// src/App.tsx
+import { useMemo, useState } from "react";
+import "./index.css";
+import { ZONES, Zone } from "./data/mockZones";
+import MapView from "./components/Map";
+import SearchBox from "./components/SearchBox";
+import LeftTab from "./components/LeftTab";
+import InfoPanel from "./components/InfoPanel";
 
-function App() {
+export default function App() {
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+
+  const selectedZone: Zone | null = useMemo(() => {
+    return ZONES.find(z => z.id === selectedZoneId) ?? null;
+  }, [selectedZoneId]);
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div className="app">
+      <div className="sidebar">
+        <div className="section-title">탭</div>
+        <LeftTab
+          zones={ZONES}
+          selectedId={selectedZoneId}
+          onSelect={(id) => setSelectedZoneId(id)}
+        />
+      </div>
+
+      <div className="header">
+        <SearchBox
+          zones={ZONES}
+          onSelect={(id) => setSelectedZoneId(id)}
+        />
+      </div>
+
+      <div className="map-wrap">
+        <div className="map-abs">
+          <MapView
+            zones={ZONES}
+            selectedId={selectedZoneId}
+            onSelect={(id) => setSelectedZoneId(id)}
+          />
+        </div>
+      </div>
+
+      <div className="info">
+        <InfoPanel zone={selectedZone} />
+      </div>
     </div>
   );
 }
-
-export default App;
