@@ -5,8 +5,8 @@
 싱크홀 안전도 서비스 프로젝트는 서울시 내의 싱크홀(지반 침하) 위험 지역을 시각적으로 확인할 수 있는 웹 기반 경보 시스템이다. 
 사용자는 웹 지도(UI)를 통해 서울시 전역을 탐색할 수 있으며 지도를 확대하거나 축소하면 해당 구 또는 동 단위로 세분화된 위험도 정보가 원의 형태로 표시된다. 각 원의 크기와 색상은 위험 수준에 따라 달라지며 지도의 확대 비율에 따라 자동으로 범위가 조정된다. 또한 사용자는 검색 기능을 통해 구 또는 동을 선택하면 해당 지역 지도로 이동해 위험도를 바로 확인할 수 있다. 시스템은 인터넷에 공개된 싱크홀 발생 이력 데이터를 기준으로 위험 지역을 시각화하며 최근 발생 지역은 공지사항 형태로 표시된다. GPS 기능을 활용해 사용자의 현재 위치를 가져오고 만약 사용자가 위험 지역 반경 내에 있을 경우 경고 알람을 표시하여 실시간으로 안전을 안내한다. 본 서비스는 시민들이 생활 속에서 지반 안전 정보를 직관적으로 확인하고 싱크홀 사고 예방에 도움을 주는 것을 목표로 하고있다.
 
-![싱크홀](https://github.com/user-attachments/assets/2bb15261-53e8-4853-96f5-141e838f372c)
-![싱크홀](https://github.com/user-attachments/assets/f524d311-e47c-489c-86e3-199e68584d45)
+<img width="2880" height="1519" alt="map2" src="https://github.com/user-attachments/assets/69de6868-f970-42dd-8f3e-8fe527b14e24" />
+<img src="https://github.com/user-attachments/assets/f524d311-e47c-489c-86e3-199e68584d45" width="500" />
 
 ---
 
@@ -15,7 +15,7 @@
 	- Leaflet.js 기반 지도 렌더링  
    	- GeoJSON 데이터로 구/동 경계 표시  
    	- Choropleth 방식으로 등급(A~D)별 색상 구분  
-   	- Hover 시 툴팁(구/동명, 등급), 클릭 시 상세 패널 오픈  
+   	- 클릭 시 상세 패널(등급/점수/공지 목록) 표시 
 2. 행정구에 따른 지도 위치 이동 **검색 기능**
 	- 검색 (서울시 ○○구 ○○동)
 	- 입력창 → 자동완성 → 선택 시 fitBounds로 이동/하이라이트
@@ -67,13 +67,13 @@
 ## 역할 분담
 | 이름 | 담당 역할 | 주요 업무 |
 |------|------------|------------|
-| **하준서** | 백엔드 | Node.js, Express 서버 구축 |
-| **문은서** | 프론트엔드 / 백엔드 보조 | EJS, README 관리, API 통합 |
-| **곽수민** | 프론트엔드 |  EJS, Bootstrap UI 구현 / 디자인 및 인터페이스 구성 |
+| **하준서** | 백엔드 | Node.js, Express 서버 구축, 데이터 처리, 외부 API 연동 |
+| **문은서** | 프론트엔드 / 백엔드 보조 | README/문서화, 안전등급 유틸, 지도 UI 보조 |
+| **곽수민** | 프론트엔드 |  React UI/UX 개발, Leaflet 지도 구현, 인터페이스 디자인 개선|
 
 ## 🛠️ 사용 기술 목록 (예정)
 
-Node.js, Express, EJS, Bootstrap, JavaScript, HTML, CSS, Render, Leaflet.js
+Node.js, Express, React, JavaScript, HTML, CSS, Render, Leaflet.js, TypeScript
 
 ## 🗓️ 프로젝트 일정
 
