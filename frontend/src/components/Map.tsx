@@ -9,6 +9,7 @@ import {
 } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
 import { Zone } from "../data/mockZones";
+import { fetchDistricts } from "../api";
 
 type Props = {
     zones: Zone[];
@@ -47,7 +48,17 @@ function FlyToZone({ zone }: { zone: Zone | null }) {
 
 export default function MapView({ zones, selectedId, onSelect }: Props) {
     const [zoom, setZoom] = useState(12);
-    const selectedZone = zones.find((z) => z.id === selectedId) ?? null;
+    const [districts, setDistricts] = useState<Zone[]>([]);
+    const selectedZone = districts.find((z) => z.id === selectedId) ?? null;
+
+    useEffect(() => {
+        fetchDistricts()
+            .then((data) => {
+                setDistricts(data);
+                console.log('districts 샘플 데이터:', data);
+            })
+            .catch((err) => console.error(err));
+    }, []);
 
     // ✅ 줌 비율에 따른 반경 스케일 계산
     const getZoomScale = (z: number) => {
@@ -84,7 +95,7 @@ export default function MapView({ zones, selectedId, onSelect }: Props) {
             <FlyToZone zone={selectedZone} />
 
             {/* ✅ 구 단위 원(circle) 표시 */}
-            {zones.map((z) => {
+            {districts.map((z) => {
                 const color = getColor(z.danger);
                 const isSelected = z.id === selectedId;
 
