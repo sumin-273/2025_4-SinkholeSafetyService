@@ -1,10 +1,11 @@
-import React from "react";
-import { Zone } from "../data/mockZones";
+import React, { useState } from "react";
+import { guDongData, DongInfo } from "../data/guDongData";
 
 type Props = {
-    zones: Zone[];
-    selectedId: string | null;
-    onSelect: (id: string) => void;
+    selectedGuId: string | null;
+    selectedDong: DongInfo | null;
+    onSelectGu: (id: string) => void;
+    onSelectDong: (dong: DongInfo) => void;
 };
 
 function getColor(level: number) {
@@ -14,46 +15,78 @@ function getColor(level: number) {
     return "#69db7c";
 }
 
-export default function LeftTab({ zones, selectedId, onSelect }: Props) {
-    const sorted = [...zones].sort((a, b) => b.danger - a.danger);
+export default function LeftTab({ selectedGuId, selectedDong, onSelectGu, onSelectDong }: Props) {
+    const [openGuId, setOpenGuId] = useState<string | null>(null);
 
     return (
-        <div className="card" style={{ display: "grid", gap: 8 }}>
-            <div className="section-title">서울시 위험 구</div>
+        <div style={{ display: "grid", gap: 12 }}>
+            <h1 className="section-title" style={{ color: "white" }}>싱크홀 안전도 서비스</h1>
 
-            {sorted.map((z) => {
-                const active = z.id === selectedId;
-                const color = getColor(z.danger);
+            {guDongData.map((gu) => {
+                const isActive = gu.guId === selectedGuId;
+                const isOpened = openGuId === gu.guId;
 
                 return (
-                    <button
-                        key={z.id}
-                        onClick={() => onSelect(z.id)}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            padding: "10px 12px",
-                            borderRadius: 10,
-                            border: `1px solid ${active ? "#3b8cff" : "#1b2332"}`,
-                            background: active ? "#0d1b2f" : "#0c1220",
-                            color: "inherit",
-                            cursor: "pointer",
-                        }}
-                    >
-                        <span
-                            style={{
-                                width: 12,
-                                height: 12,
-                                borderRadius: 99,
-                                background: color,
+                    <div key={gu.guId}>
+                        <button
+                            onClick={() => {
+                                onSelectGu(gu.guId);
+                                setOpenGuId(isOpened ? null : gu.guId);
                             }}
-                        />
-                        <span style={{ fontWeight: 600 }}>{z.name}</span>
-                        <span style={{ color: "#8aa0b5", fontSize: 13 }}>
-                            위험도 {z.danger}
-                        </span>
-                    </button>
+                            style={{
+                                width: "100%",
+                                padding: "10px 12px",
+                                borderRadius: 10,
+                                border: `1px solid ${isActive ? "#3b8cff" : "#1b2332"}`,
+                                background: isActive ? "#0d1b2f" : "#0c1220",
+                                color: "white",
+                                cursor: "pointer",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                            }}
+                        >
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <span
+                                    style={{
+                                        width: 12,
+                                        height: 12,
+                                        borderRadius: "50%",
+                                        background: getColor(gu.danger),
+                                    }}
+                                />
+                                <span style={{ fontWeight: 600 }}>{gu.guName}</span>
+                            </div>
+                            <span style={{ color: "#ccc" }}>위험도 {gu.danger}</span>
+                        </button>
+
+                        {isOpened && (
+                            <div style={{ marginLeft: 20, marginTop: 6, display: "grid", gap: 6 }}>
+                                {gu.dongs.map((dong) => {
+                                    const dongActive = selectedDong?.id === dong.id;
+                                    return (
+                                        <button
+                                            key={dong.id}
+                                            onClick={() => onSelectDong(dong)}
+                                            style={{
+                                                padding: "6px 10px",
+                                                borderRadius: 8,
+                                                border: "1px solid #1b2332",
+                                                background: dongActive ? "#112233" : "#0c1220",
+                                                color: "white",
+                                                display: "flex",
+                                                justifyContent: "space-between",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            <span>{dong.id}</span>
+                                            <span style={{ color: "#ccc" }}>위험도 {dong.danger}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 );
             })}
         </div>

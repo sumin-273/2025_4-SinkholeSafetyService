@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { Zone } from "../data/mockZones";
+import { GuInfo } from "../data/guDongData";
 
 type Props = {
-    zones: Zone[];
+    zones: { id: string; name: string; danger: number }[];
     onSelect: (id: string) => void;
 };
 
@@ -17,7 +17,7 @@ export default function SearchBox({ zones, onSelect }: Props) {
     }, [q, zones]);
 
     return (
-        <div style={{ width: 520, position: "relative" }}>
+        <div style={{ width: 420, position: "relative" }}>
             <input
                 className="input"
                 placeholder="구 이름으로 검색..."
@@ -28,17 +28,30 @@ export default function SearchBox({ zones, onSelect }: Props) {
                 }}
                 onFocus={() => setOpen(true)}
                 onBlur={() => setTimeout(() => setOpen(false), 150)}
+                style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    background: "#0d1b2f",
+                    border: "1px solid #2b3b56",
+                    color: "white",
+                    fontSize: 15,
+                }}
             />
+
             {open && results.length > 0 && (
                 <div
                     className="card"
                     style={{
                         position: "absolute",
-                        top: 46,
+                        top: 50,
                         left: 0,
                         right: 0,
                         zIndex: 1000,
                         padding: 6,
+                        background: "#0d1b2f",
+                        borderRadius: 10,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
                     }}
                 >
                     {results.map((z) => (
@@ -56,10 +69,11 @@ export default function SearchBox({ zones, onSelect }: Props) {
                                 borderRadius: 8,
                                 cursor: "pointer",
                                 border: "1px solid transparent",
+                                color: "white",
                             }}
                             onMouseEnter={(e) =>
                             ((e.currentTarget as HTMLDivElement).style.borderColor =
-                                "#2b3b56")
+                                "#3b8cff")
                             }
                             onMouseLeave={(e) =>
                             ((e.currentTarget as HTMLDivElement).style.borderColor =
@@ -70,7 +84,7 @@ export default function SearchBox({ zones, onSelect }: Props) {
                                 style={{
                                     width: 10,
                                     height: 10,
-                                    borderRadius: 99,
+                                    borderRadius: "50%",
                                     background: getColor(z.danger),
                                 }}
                             />
