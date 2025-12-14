@@ -80,23 +80,23 @@ export default function MapView({
             <FlyToGu gu={selectedGu} />
             <FlyToDong dong={selectedDong} />
 
-<<<<<<< HEAD
-            {/* ✅ 구 단위 원(circle) 표시 */}
-            {districts.map((z) => {
-                const color = getColor(z.danger);
-                const isSelected = z.id === selectedId;
-
-                // ✅ 기본 반경(m) + 위험도 기반
-                const baseRadius = 1200 + z.danger * 300;
-
-                // ✅ 줌 스케일 적용
-                const radiusMeters = baseRadius * zoomScale;
-
-                return (
-=======
             {/* 구 원 */}
             {!showDongCircles &&
-                guDongData.map((gu) => (         <div>위험도 {gu.danger}</div>
+                guDongData.map((gu) => (
+                    <Circle
+                        key={gu.guId}
+                        center={[gu.lat, gu.lng]}
+                        radius={1200 + gu.danger * 300}
+                        color={getColor(gu.danger)}
+                        fillColor={getColor(gu.danger)}
+                        fillOpacity={0.45}
+                        eventHandlers={{
+                            click: () => onSelectFromMap(gu.guId, null),
+                        }}
+                    >
+                        <Tooltip>
+                            <div>{gu.guName}</div>
+                            <div>위험도 {gu.danger}</div>
                         </Tooltip>
                     </Circle>
                 ))}
