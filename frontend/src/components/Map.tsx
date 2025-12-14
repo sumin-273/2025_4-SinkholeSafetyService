@@ -138,15 +138,14 @@ export default function MapView({
                         <Circle
                             key={dong.id}
                             center={[dong.lat, dong.lng]}
-                            radius={450 + dong.danger * 200}
-                            color={getColor(dong.danger)}
-                            fillColor={getColor(dong.danger)}
-                            fillOpacity={0.55}
                             radius={
                                 selectedGu && selectedDong && selectedGu.guId === g.guId && selectedDong.id === dong.id && safety
                                     ? 300 + (safety.score || 0) * 5
                                     : 450 + dong.danger * 200
                             }
+                            color={getColor(dong.danger)}
+                            fillColor={getColor(dong.danger)}
+                            fillOpacity={0.55}
                             eventHandlers={{
                                 click: () => onSelectFromMap(g.guId, dong),
                             }}
