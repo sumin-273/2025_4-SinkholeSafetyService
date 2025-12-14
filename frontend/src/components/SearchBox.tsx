@@ -20,7 +20,7 @@ export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
 
     async function searchRemote(text: string) {
         try {
-            const resp = await fetch(`/api/geocode?q=${encodeURIComponent(text)}`);
+            const resp = await fetch(`http://localhost:3001/api/geocode?q=${encodeURIComponent(text)}`);
             if (!resp.ok) { setRemote(null); return; }
             const data = await resp.json();
             setRemote({ name: data.place_name || text, lat: data.lat, lng: data.lng });
@@ -74,48 +74,6 @@ export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
                         boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
                     }}
                 >
-                    {/* 로컬(구 목록) 결과 */}
-                    {results.map((z) => (
-                        <div
-                            key={z.id}
-                            onMouseDown={() => {
-                                onSelect(z.id);
-                                setQ(z.name);
-                            }}
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                padding: "8px 10px",
-                                borderRadius: 8,
-                                cursor: "pointer",
-                                border: "1px solid transparent",
-                                color: "white",
-                            }}
-                            onMouseEnter={(e) =>
-                            ((e.currentTarget as HTMLDivElement).style.borderColor =
-                                "#3b8cff")
-                            }
-                            onMouseLeave={(e) =>
-                            ((e.currentTarget as HTMLDivElement).style.borderColor =
-                                "transparent")
-                            }
-                        >
-                            <span
-                                style={{
-                                    width: 10,
-                                    height: 10,
-                                    borderRadius: "50%",
-                                    background: getColor(z.danger),
-                                }}
-                            />
-                            <div style={{ fontWeight: 600 }}>{z.name}</div>
-                            <div style={{ marginLeft: "auto", color: "#8aa0b5" }}>
-                                위험도 {z.danger}
-                            </div>
-                        </div>
-                    ))}
-
                     {/* 원격(Kakao) 결과 한 줄 표시 */}
                     {remote && (
                         <div
@@ -153,10 +111,7 @@ export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
                                     background: "#3b8cff",
                                 }}
                             />
-                            <div style={{ fontWeight: 600 }}>카카오 검색: {remote.name}</div>
-                            <div style={{ marginLeft: "auto", color: "#8aa0b5" }}>
-                                ({remote.lat.toFixed(4)}, {remote.lng.toFixed(4)})
-                            </div>
+                            <div style={{ fontWeight: 600 }}>{remote.name}</div>
                         </div>
                     )}
                 </div>

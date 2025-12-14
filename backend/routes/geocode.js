@@ -9,6 +9,14 @@ const API_KEY = process.env.KAKAO_REST_API_KEY;
 const KAKAO_ADDR_URL = "https://dapi.kakao.com/v2/local/search/address.json";
 const KAKAO_KEYWORD_URL = "https://dapi.kakao.com/v2/local/search/keyword.json";
 
+// 서울시 결과만 허용
+function isSeoul(doc) {
+    if (!doc) return false;
+    const addr = doc.address_name || doc.road_address_name || "";
+    const region = doc.region_1depth_name || doc.address?.region_1depth_name || "";
+    return addr.includes("서울") || region.includes("서울");
+}
+
 // GET /api/geocode?q=서울 종로구 종로1가
 router.get("/", async (req, res) => {
     try {
@@ -28,7 +36,8 @@ router.get("/", async (req, res) => {
         if (!addrResp.ok) throw new Error(`Kakao address API error: ${addrResp.status}`);
         const addrData = await addrResp.json();
 
-        let doc = (addrData.documents || [])[0];
+        // 서울시만 필터링
+        let doc = (addrData.documents || []).find(d => isSeoul(d));
 
         // 2) 주소가 없으면 키워드 검색 시도 (예: "종로구 종로1가")
         if (!doc) {
@@ -38,11 +47,12 @@ router.get("/", async (req, res) => {
             });
             if (!kwResp.ok) throw new Error(`Kakao keyword API error: ${kwResp.status}`);
             const kwData = await kwResp.json();
-            doc = (kwData.documents || [])[0];
+            // 서울시만 필터링
+            doc = (kwData.documents || []).find(d => isSeoul(d));
         }
 
         if (!doc) {
-            return res.status(404).json({ error: { code: "NOT_FOUND", message: "검색 결과가 없습니다" } });
+            return res.status(404).json({ error: { code: "NOT_FOUND", message: "서울시 내 검색 결과가 없습니다" } });
         }
 
         const lat = Number(doc.y);

@@ -53,7 +53,7 @@ async function fetchFromAPI(keywords = "", limit = 10) {
                 .map(item => ({
                     id: item.ACDNT_NO || item.SENU || Math.random().toString(),
                     title: `${item.SGG || "서울시"} 지반침하 사고`,
-                    date: item.OCRN_YMD ? `${item.OCRN_YMD.substring(0,4)}-${item.OCRN_YMD.substring(4,6)}-${item.OCRN_YMD.substring(6,8)}` : new Date().toISOString().split('T')[0],
+                    date: item.OCRN_YMD ? `${item.OCRN_YMD.substring(0, 4)}-${item.OCRN_YMD.substring(4, 6)}-${item.OCRN_YMD.substring(6, 8)}` : new Date().toISOString().split('T')[0],
                     location: `서울특별시 ${item.SGG || ""}`.trim(),
                     description: item.DTL_OCRN_CS || "상세정보 없음",
                     source: "국토교통부"
@@ -85,7 +85,7 @@ function filterAndLimit(notices, keywords, limit) {
     if (!keywords) return notices.slice(0, limit);
 
     const ks = keywords.split(",").map(s => s.trim()).filter(Boolean);
-    const filtered = notices.filter(n => 
+    const filtered = notices.filter(n =>
         ks.some(k => n.title.includes(k) || n.description.includes(k))
     );
 

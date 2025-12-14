@@ -63,8 +63,7 @@ export default function App() {
               setSelectedDong(null);
             }}
             onRemoteSelect={(p) => {
-              // 원격 좌표 선택 시: 가장 가까운 구/동 추정 후 선택 상태 갱신
-              // 간단히: 거리 최소의 구를 선택하고 지도 이동은 Map 컴포넌트가 처리(선택 변경 시 FlyTo)
+              // 원격 좌표 선택 시: 가장 가까운 구를 거리로 선택
               const nearestGu = guDongData
                 .slice()
                 .sort((a, b) =>
