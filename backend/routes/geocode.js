@@ -1,35 +1,59 @@
 import { Router } from "express";
+import fetch from "node-fetch";
+import dotenv from "dotenv";
 
+dotenv.config();
 const router = Router();
 
-// 1주차는 하드코딩(목업). 2주차에 Kakao Local API로 교체 예정.
-const table = {
-    "서울시 강동구 명일동": {
-        gu: "강동구",
-        dong: "명일동",
-        coord: { lat: 37.5505, lng: 127.1507 },
-        bounds: [[37.547, 127.145], [37.554, 127.155]]
-    },
-    "서울시 마포구 서교동": {
-        gu: "마포구",
-        dong: "서교동",
-        coord: { lat: 37.5520, lng: 126.9188 },
-        bounds: [[37.546, 126.912], [37.557, 126.925]]
-    }
-};
+const API_KEY = process.env.KAKAO_REST_API_KEY;
+const KAKAO_ADDR_URL = "https://dapi.kakao.com/v2/local/search/address.json";
+const KAKAO_KEYWORD_URL = "https://dapi.kakao.com/v2/local/search/keyword.json";
 
-// GET /api/geocode?q=서울시+강동구+명일동
-router.get("/", (req, res) => {
-    const q = String(req.query.q || "").trim(); // 쿼리문자열 읽기
-    const data = table[q]; // 하드코딩된 테이블에서 검색
+// GET /api/geocode?q=서울 종로구 종로1가
+router.get("/", async (req, res) => {
+    try {
+        const q = String(req.query.q || "").trim();
+        if (!q) {
+            return res.status(400).json({ error: { code: "BAD_REQUEST", message: "q 파라미터가 필요합니다" } });
+        }
+        if (!API_KEY) {
+            return res.status(500).json({ error: { code: "MISSING_API_KEY", message: "KAKAO_REST_API_KEY가 설정되지 않았습니다" } });
+        }
 
-    if (!data) {
-        return res.status(404).json({
-            error: { code: "NOT_FOUND", message: "해당 주소를 찾을 수 없습니다(목업)" }
+        // 1) 주소 검색 우선 시도
+        const addrResp = await fetch(`${KAKAO_ADDR_URL}?query=${encodeURIComponent(q)}`, {
+            headers: { Authorization: `KakaoAK ${API_KEY}` },
+            timeout: 10000,
         });
-    }
+        if (!addrResp.ok) throw new Error(`Kakao address API error: ${addrResp.status}`);
+        const addrData = await addrResp.json();
 
-    res.json(data);
+        let doc = (addrData.documents || [])[0];
+
+        // 2) 주소가 없으면 키워드 검색 시도 (예: "종로구 종로1가")
+        if (!doc) {
+            const kwResp = await fetch(`${KAKAO_KEYWORD_URL}?query=${encodeURIComponent(q)}`, {
+                headers: { Authorization: `KakaoAK ${API_KEY}` },
+                timeout: 10000,
+            });
+            if (!kwResp.ok) throw new Error(`Kakao keyword API error: ${kwResp.status}`);
+            const kwData = await kwResp.json();
+            doc = (kwData.documents || [])[0];
+        }
+
+        if (!doc) {
+            return res.status(404).json({ error: { code: "NOT_FOUND", message: "검색 결과가 없습니다" } });
+        }
+
+        const lat = Number(doc.y);
+        const lng = Number(doc.x);
+        const place_name = doc.address_name || doc.place_name || q;
+
+        res.json({ lat, lng, place_name });
+    } catch (e) {
+        console.error("Geocode API 오류:", e);
+        res.status(500).json({ error: { code: "INTERNAL_ERROR", message: e.message } });
+    }
 });
 
 export default router;

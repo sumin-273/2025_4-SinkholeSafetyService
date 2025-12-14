@@ -9,12 +9,24 @@ type Props = {
 export default function SearchBox({ zones, onSelect }: Props) {
     const [q, setQ] = useState("");
     const [open, setOpen] = useState(false);
+    const [remote, setRemote] = useState<{ name: string; lat: number; lng: number } | null>(null);
 
     const results = useMemo(() => {
         const key = q.trim().toLowerCase();
         if (!key) return [];
         return zones.filter((z) => z.name.toLowerCase().includes(key)).slice(0, 6);
     }, [q, zones]);
+
+    async function searchRemote(text: string) {
+        try {
+            const resp = await fetch(`/api/geocode?q=${encodeURIComponent(text)}`);
+            if (!resp.ok) { setRemote(null); return; }
+            const data = await resp.json();
+            setRemote({ name: data.place_name || text, lat: data.lat, lng: data.lng });
+        } catch {
+            setRemote(null);
+        }
+    }
 
     return (
         <div style={{ width: 420, position: "relative" }}>
@@ -23,8 +35,15 @@ export default function SearchBox({ zones, onSelect }: Props) {
                 placeholder="구 이름으로 검색..."
                 value={q}
                 onChange={(e) => {
-                    setQ(e.target.value);
+                    const v = e.target.value;
+                    setQ(v);
                     setOpen(true);
+                    // 원격 지오코드 병행 (디바운스 생략: 간단 구현)
+                    if (v.trim().length >= 2) {
+                        searchRemote(v.trim());
+                    } else {
+                        setRemote(null);
+                    }
                 }}
                 onFocus={() => setOpen(true)}
                 onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -39,7 +58,7 @@ export default function SearchBox({ zones, onSelect }: Props) {
                 }}
             />
 
-            {open && results.length > 0 && (
+            {open && (
                 <div
                     className="card"
                     style={{
@@ -54,6 +73,7 @@ export default function SearchBox({ zones, onSelect }: Props) {
                         boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
                     }}
                 >
+                    {/* 로컬(구 목록) 결과 */}
                     {results.map((z) => (
                         <div
                             key={z.id}
@@ -94,6 +114,49 @@ export default function SearchBox({ zones, onSelect }: Props) {
                             </div>
                         </div>
                     ))}
+
+                    {/* 원격(Kakao) 결과 한 줄 표시 */}
+                    {remote && (
+                        <div
+                            onMouseDown={() => {
+                                // 좌표 검색 결과 선택: 지도 이동은 부모가 처리해야 함
+                                setQ(remote.name);
+                                // onSelect를 zones id 기반으로 쓰는 구조라면, 지도 이동 로직을 상위에서 remote 좌표로 처리
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "8px 10px",
+                                borderRadius: 8,
+                                cursor: "pointer",
+                                border: "1px solid transparent",
+                                color: "white",
+                                marginTop: 6,
+                            }}
+                            onMouseEnter={(e) =>
+                                ((e.currentTarget as HTMLDivElement).style.borderColor =
+                                    "#3b8cff")
+                            }
+                            onMouseLeave={(e) =>
+                                ((e.currentTarget as HTMLDivElement).style.borderColor =
+                                    "transparent")
+                            }
+                        >
+                            <span
+                                style={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: "50%",
+                                    background: "#3b8cff",
+                                }}
+                            />
+                            <div style={{ fontWeight: 600 }}>카카오 검색: {remote.name}</div>
+                            <div style={{ marginLeft: "auto", color: "#8aa0b5" }}>
+                                ({remote.lat.toFixed(4)}, {remote.lng.toFixed(4)})
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
