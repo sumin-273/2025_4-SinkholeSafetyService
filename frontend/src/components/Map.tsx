@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
     MapContainer,
     TileLayer,
@@ -8,27 +8,44 @@ import {
     useMapEvents,
 } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
-import { Zone } from "../data/mockZones";
-import { fetchDistricts } from "../api";
+import { guDongData, DongInfo, GuInfo } from "../data/guDongData";
 
 type Props = {
-    zones: Zone[];
-    selectedId: string | null;
-    onSelect: (id: string) => void;
+    selectedGuId: string | null;
+    selectedDong: DongInfo | null;
+    onSelectFromMap: (guId: string | null, dong: DongInfo | null) => void;
 };
 
-// ✅ 서울 중심
 const SEOUL_CENTER: LatLngExpression = [37.5665, 126.9780];
 
-// ✅ 위험도별 색상 함수
 function getColor(level: number) {
-    if (level >= 4) return "#ff4d4f"; // 매우 위험
-    if (level === 3) return "#ffa94d"; // 주의
-    if (level === 2) return "#ffe066"; // 관심
-    return "#69db7c"; // 안전
+    if (level >= 4) return "#ff4d4f";
+    if (level === 3) return "#ffa94d";
+    if (level === 2) return "#ffe066";
+    return "#69db7c";
 }
 
-// ✅ 지도 줌 감시
+// 구로 이동
+function FlyToGu({ gu }: { gu: GuInfo | null }) {
+    const map = useMap();
+    useEffect(() => {
+        if (!gu) return;
+        map.flyTo([gu.lat, gu.lng], 13, { duration: 0.8 });
+    }, [gu]);
+    return null;
+}
+
+// 동으로 이동
+function FlyToDong({ dong }: { dong: DongInfo | null }) {
+    const map = useMap();
+    useEffect(() => {
+        if (!dong) return;
+        map.flyTo([dong.lat, dong.lng], 15, { duration: 0.8 });
+    }, [dong]);
+    return null;
+}
+
+// 줌 감시
 function ZoomWatcher({ setZoom }: { setZoom: (z: number) => void }) {
     const map = useMapEvents({
         zoomend: () => setZoom(map.getZoom()),
@@ -36,64 +53,34 @@ function ZoomWatcher({ setZoom }: { setZoom: (z: number) => void }) {
     return null;
 }
 
-// ✅ 선택된 구로 부드럽게 이동
-function FlyToZone({ zone }: { zone: Zone | null }) {
-    const map = useMap();
-    useEffect(() => {
-        if (!zone) return;
-        map.flyTo([zone.lat, zone.lng], 13, { duration: 0.8 });
-    }, [zone, map]);
-    return null;
-}
-
-export default function MapView({ zones, selectedId, onSelect }: Props) {
+export default function MapView({
+    selectedGuId,
+    selectedDong,
+    onSelectFromMap,
+}: Props) {
     const [zoom, setZoom] = useState(12);
-    const [districts, setDistricts] = useState<Zone[]>([]);
-    const selectedZone = districts.find((z) => z.id === selectedId) ?? null;
+    const selectedGu = selectedGuId
+        ? guDongData.find((g) => g.guId === selectedGuId) ?? null
+        : null;
 
-    useEffect(() => {
-        fetchDistricts()
-            .then((data) => {
-                setDistricts(data);
-                console.log('districts 샘플 데이터:', data);
-            })
-            .catch((err) => console.error(err));
-    }, []);
-
-    // ✅ 줌 비율에 따른 반경 스케일 계산
-    const getZoomScale = (z: number) => {
-        // zoom 값(11~15)에 따라 비율 다르게
-        if (z <= 11) return 2.0;   // 많이 축소 → 크게 표시
-        if (z === 12) return 1.6;
-        if (z === 13) return 1.2;
-        if (z === 14) return 0.8;
-        if (z >= 15) return 0.5;   // 많이 확대 → 작게 표시
-        return 1.0;
-    };
-
-    const zoomScale = getZoomScale(zoom);
+    const showDongCircles = zoom >= 13;
 
     return (
         <MapContainer
             center={SEOUL_CENTER}
             zoom={12}
-            minZoom={11}
-            maxZoom={15}
             style={{ width: "100%", height: "100%" }}
-            scrollWheelZoom
         >
-            {/* 지도 타일 */}
             <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
 
-            {/* 줌 이벤트 감시 */}
             <ZoomWatcher setZoom={setZoom} />
 
-            {/* 선택된 구로 이동 */}
-            <FlyToZone zone={selectedZone} />
+            <FlyToGu gu={selectedGu} />
+            <FlyToDong dong={selectedDong} />
 
+<<<<<<< HEAD
             {/* ✅ 구 단위 원(circle) 표시 */}
             {districts.map((z) => {
                 const color = getColor(z.danger);
@@ -106,25 +93,36 @@ export default function MapView({ zones, selectedId, onSelect }: Props) {
                 const radiusMeters = baseRadius * zoomScale;
 
                 return (
-                    <Circle
-                        key={z.id}
-                        center={[z.lat, z.lng]}
-                        radius={radiusMeters}
-                        color={color}
-                        fillColor={color}
-                        fillOpacity={isSelected ? 0.55 : 0.35}
-                        weight={isSelected ? 3 : 1.5}
-                        eventHandlers={{
-                            click: () => onSelect(z.id),
-                        }}
-                    >
-                        <Tooltip direction="top" offset={[0, -5]} opacity={1}>
-                            <div style={{ fontWeight: 600 }}>{z.name}</div>
-                            <div>위험도: {z.danger}단계</div>
+=======
+            {/* 구 원 */}
+            {!showDongCircles &&
+                guDongData.map((gu) => (         <div>위험도 {gu.danger}</div>
                         </Tooltip>
                     </Circle>
-                );
-            })}
+                ))}
+
+            {/* 동 원 */}
+            {showDongCircles &&
+                guDongData.flatMap((g) =>
+                    g.dongs.map((dong) => (
+                        <Circle
+                            key={dong.id}
+                            center={[dong.lat, dong.lng]}
+                            radius={450 + dong.danger * 200}
+                            color={getColor(dong.danger)}
+                            fillColor={getColor(dong.danger)}
+                            fillOpacity={0.55}
+                            eventHandlers={{
+                                click: () => onSelectFromMap(g.guId, dong),
+                            }}
+                        >
+                            <Tooltip>
+                                <div>{dong.id}</div>
+                                <div>위험도 {dong.danger}</div>
+                            </Tooltip>
+                        </Circle>
+                    ))
+                )}
         </MapContainer>
     );
 }
