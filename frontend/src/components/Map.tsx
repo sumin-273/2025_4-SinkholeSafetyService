@@ -9,6 +9,7 @@ import {
 } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
 import { guDongData, DongInfo, GuInfo } from "../data/guDongData";
+import { fetchSafetyScores } from "../api";
 
 type Props = {
     selectedGuId: string | null;
@@ -59,11 +60,32 @@ export default function MapView({
     onSelectFromMap,
 }: Props) {
     const [zoom, setZoom] = useState(12);
+    const [safety, setSafety] = useState<{ score: number; grade: string } | null>(null);
     const selectedGu = selectedGuId
         ? guDongData.find((g) => g.guId === selectedGuId) ?? null
         : null;
 
     const showDongCircles = zoom >= 13;
+
+    // 선택 변경 시 안전도 API 호출
+    useEffect(() => {
+        const run = async () => {
+            try {
+                const guName = selectedGu?.guName || "";
+                const dongName = selectedDong?.id || "";
+                if (!guName || !dongName) {
+                    setSafety(null);
+                    return;
+                }
+                const data = await fetchSafetyScores(guName, dongName);
+                setSafety({ score: Number(data.score) || 0, grade: String(data.grade || "-") });
+            } catch (e) {
+                console.warn("safety API 호출 실패", e);
+                setSafety(null);
+            }
+        };
+        run();
+    }, [selectedGu?.guName, selectedDong?.id]);
 
     return (
         <MapContainer
@@ -119,6 +141,11 @@ export default function MapView({
                             <Tooltip>
                                 <div>{dong.id}</div>
                                 <div>위험도 {dong.danger}</div>
+                                {selectedGu && selectedDong && selectedGu.guId === g.guId && selectedDong.id === dong.id && safety ? (
+                                    <div style={{ marginTop: 4 }}>
+                                        실제 등급 {safety.grade} · 점수 {safety.score}
+                                    </div>
+                                ) : null}
                             </Tooltip>
                         </Circle>
                     ))
