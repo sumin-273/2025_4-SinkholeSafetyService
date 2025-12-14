@@ -91,3 +91,38 @@ Node.js, Express, React, JavaScript, HTML, CSS, Render, Leaflet.js, TypeScript
 - 모바일 성능 최적화 (지도 캐싱 / 오프라인 모드)  
 - 이동 경로 기반 위험도 안내 기능 추가  
 - 향후 앱(App) 버전 확장 검토  
+
+---
+
+## v0.3.0 마일스톤
+- 백엔드: 국토교통부 재난안전데이터 오픈API 연동
+	- `DSSP-IF-00752` 지반침하 위험도 평가
+	- `DSSP-IF-00754` 지반침하사고 목록 (서울시 필터 적용)
+- 프론트엔드: InfoPanel에서 공지사항 실데이터 로딩 및 선택된 구/동 기준 필터링
+
+## 로컬 실행 방법
+- 요구사항: Node.js 18+ / npm
+- 설치:
+	- 프로젝트 루트: `npm install`
+	- 백엔드: `cd backend && npm install`
+	- 프론트엔드: `cd ../frontend && npm install`
+- 환경변수:
+	- `backend/.env` 파일 생성
+		- `MOLIT_RISK_API_KEY` (DSSP-IF-00752)
+		- `MOLIT_ACCIDENT_API_KEY` (DSSP-IF-00754)
+		- `MOLIT_UNDERGROUND_API_KEY` (옵션)
+	- 주의: `backend/.gitignore`에 `.env`가 포함되어 있어야 합니다.
+- 실행:
+	- 루트에서 동시 실행: `npm run dev`
+	- 백엔드: http://localhost:3001
+	- 프론트엔드: http://localhost:3000
+
+## 백엔드 API 엔드포인트
+- `GET /api/safety?gu=강남구&dong=역삼동` — 해당 지역 위험도 점수/등급
+- `GET /api/notices?limit=5` — 최근 지반침하 사고 목록(서울 필터)
+- `GET /api/districts` — 샘플 지구 폴리곤(구성되어 있을 경우)
+
+## 다음 단계
+- 지도 클릭 시 Safety API로 실제 위험도 반영
+- 지오코드(카카오/네이버) 검색 연동
+- 지하안전정보 API 연계
