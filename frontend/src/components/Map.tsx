@@ -26,6 +26,15 @@ function getColor(level: number) {
     return "#69db7c";
 }
 
+function colorByGrade(grade: string | null) {
+    const g = String(grade || '').toUpperCase();
+    if (g === 'D') return '#ff4d4f';
+    if (g === 'C') return '#ffa94d';
+    if (g === 'B') return '#ffe066';
+    if (g === 'A') return '#69db7c';
+    return '#69db7c';
+}
+
 // 구로 이동
 function FlyToGu({ gu }: { gu: GuInfo | null }) {
     const map = useMap();
@@ -143,8 +152,16 @@ export default function MapView({
                                     ? 300 + (safety.score || 0) * 5
                                     : 450 + dong.danger * 200
                             }
-                            color={getColor(dong.danger)}
-                            fillColor={getColor(dong.danger)}
+                            color={
+                                selectedGu && selectedDong && selectedGu.guId === g.guId && selectedDong.id === dong.id && safety
+                                    ? colorByGrade(safety.grade)
+                                    : getColor(dong.danger)
+                            }
+                            fillColor={
+                                selectedGu && selectedDong && selectedGu.guId === g.guId && selectedDong.id === dong.id && safety
+                                    ? colorByGrade(safety.grade)
+                                    : getColor(dong.danger)
+                            }
                             fillOpacity={0.55}
                             eventHandlers={{
                                 click: () => onSelectFromMap(g.guId, dong),
