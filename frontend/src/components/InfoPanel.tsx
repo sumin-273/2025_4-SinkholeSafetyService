@@ -1,9 +1,18 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { GuInfo, DongInfo } from "../data/guDongData";
 
 type Props = {
     gu: GuInfo | null;
     dong: DongInfo | null;
+};
+
+type Notice = {
+    id: string;
+    title: string;
+    date: string;
+    location: string;
+    description: string;
+    source: string;
 };
 
 function getColor(level: number) {
@@ -15,6 +24,43 @@ function getColor(level: number) {
 }
 
 export default function InfoPanel({ gu, dong }: Props) {
+    const [notices, setNotices] = useState<Notice[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    // notices API 호출
+    useEffect(() => {
+        const fetchNotices = async () => {
+            setLoading(true);
+            try {
+                const response = await fetch("/api/notices?limit=10");
+                if (response.ok) {
+                    const data = await response.json();
+                    setNotices(data);
+                }
+            } catch (error) {
+                console.error("공지사항 로딩 실패:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchNotices();
+    }, []);
+
+    // 선택된 구/동에 맞는 공지사항 필터링
+    const getFilteredNotices = () => {
+        if (dong) {
+            // 동 선택 시: 동 이름이 location에 포함된 것만
+            return notices.filter(n => n.location.includes(dong.id));
+        }
+        if (gu) {
+            // 구 선택 시: 구 이름이 location에 포함된 것만
+            return notices.filter(n => n.location.includes(gu.guName));
+        }
+        return notices;
+    };
+
+    const filteredNotices = getFilteredNotices();
     // ---------------------------------------------
     // 아무것도 선택되지 않은 경우
     // ---------------------------------------------
@@ -68,10 +114,22 @@ export default function InfoPanel({ gu, dong }: Props) {
                         <span style={{ fontWeight: 700 }}>최근 공지</span>
                     </div>
 
-                    <ul style={{ paddingLeft: 20, margin: "10px 0 0 0", color: "#98a7b5" }}>
-                        <li>최근 1개월 내 지반 침하 보고 1건</li>
-                        <li>정밀 점검 요청 접수됨</li>
-                    </ul>
+                    {loading ? (
+                        <div style={{ padding: "10px 0", color: "#98a7b5" }}>로딩 중...</div>
+                    ) : filteredNotices.length > 0 ? (
+                        <ul style={{ paddingLeft: 20, margin: "10px 0 0 0", color: "#98a7b5" }}>
+                            {filteredNotices.slice(0, 3).map(notice => (
+                                <li key={notice.id} style={{ marginBottom: 8 }}>
+                                    <div style={{ fontWeight: 600, color: "#cfd6e1" }}>{notice.title}</div>
+                                    <div style={{ fontSize: 12, color: "#7d8a99" }}>
+                                        {notice.date} · {notice.location}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div style={{ padding: "10px 0", color: "#98a7b5" }}>해당 지역 공지사항이 없습니다</div>
+                    )}
                 </div>
             </div>
         );
@@ -116,10 +174,22 @@ export default function InfoPanel({ gu, dong }: Props) {
                         <span style={{ fontWeight: 700 }}>최근 공지</span>
                     </div>
 
-                    <ul style={{ paddingLeft: 20, margin: "10px 0 0 0", color: "#98a7b5" }}>
-                        <li>최근 3개월 내 2건의 지반 침하 보고</li>
-                        <li>정밀 점검 예정 (2025-12-10)</li>
-                    </ul>
+                    {loading ? (
+                        <div style={{ padding: "10px 0", color: "#98a7b5" }}>로딩 중...</div>
+                    ) : filteredNotices.length > 0 ? (
+                        <ul style={{ paddingLeft: 20, margin: "10px 0 0 0", color: "#98a7b5" }}>
+                            {filteredNotices.slice(0, 3).map(notice => (
+                                <li key={notice.id} style={{ marginBottom: 8 }}>
+                                    <div style={{ fontWeight: 600, color: "#cfd6e1" }}>{notice.title}</div>
+                                    <div style={{ fontSize: 12, color: "#7d8a99" }}>
+                                        {notice.date} · {notice.location}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div style={{ padding: "10px 0", color: "#98a7b5" }}>해당 지역 공지사항이 없습니다</div>
+                    )}
                 </div>
             </div>
         );
