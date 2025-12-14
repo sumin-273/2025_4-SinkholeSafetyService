@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { fetchSafetyScores } from "../api";
 import { GuInfo, DongInfo } from "../data/guDongData";
 
 type Props = {
@@ -26,6 +27,7 @@ function getColor(level: number) {
 export default function InfoPanel({ gu, dong }: Props) {
     const [notices, setNotices] = useState<Notice[]>([]);
     const [loading, setLoading] = useState(false);
+    const [safety, setSafety] = useState<{ score: number; grade: string } | null>(null);
 
     // notices API 호출
     useEffect(() => {
@@ -46,6 +48,22 @@ export default function InfoPanel({ gu, dong }: Props) {
 
         fetchNotices();
     }, []);
+
+    // 선택된 동의 실제 안전도 로딩
+    useEffect(() => {
+        const loadSafety = async () => {
+            try {
+                const guName = gu?.guName || "";
+                const dongName = dong?.id || "";
+                if (!guName || !dongName) { setSafety(null); return; }
+                const data = await fetchSafetyScores(guName, dongName);
+                setSafety({ score: Number(data.score) || 0, grade: String(data.grade || "-") });
+            } catch (e) {
+                setSafety(null);
+            }
+        };
+        loadSafety();
+    }, [gu?.guName, dong?.id]);
 
     // 선택된 구/동에 맞는 공지사항 필터링
     const getFilteredNotices = () => {
@@ -98,6 +116,11 @@ export default function InfoPanel({ gu, dong }: Props) {
 
                 <div style={{ fontSize: 16, color: "#cfd6e1" }}>
                     위험도 <b>{dong.danger}단계</b>
+                    {safety ? (
+                        <div style={{ marginTop: 6, color: "#98a7b5" }}>
+                            실제 등급 <b>{safety.grade}</b> · 점수 <b>{safety.score}</b>
+                        </div>
+                    ) : null}
                 </div>
 
                 {/* 공지 박스 */}

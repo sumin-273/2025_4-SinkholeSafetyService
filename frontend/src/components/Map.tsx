@@ -66,19 +66,27 @@ export default function MapView({
         : null;
 
     const showDongCircles = zoom >= 13;
+    const [safetyCache, setSafetyCache] = useState<Record<string, { score: number; grade: string }>>({});
 
     // 선택 변경 시 안전도 API 호출
     useEffect(() => {
         const run = async () => {
             try {
-                const guName = selectedGu?.guName || "";
+                const guName = selectedGu?.guName || guDongData.find(g => g.dongs.some(d => d.id === selectedDong?.id))?.guName || "";
                 const dongName = selectedDong?.id || "";
                 if (!guName || !dongName) {
                     setSafety(null);
                     return;
                 }
+                const key = `${guName}:${dongName}`;
+                if (safetyCache[key]) {
+                    setSafety(safetyCache[key]);
+                    return;
+                }
                 const data = await fetchSafetyScores(guName, dongName);
-                setSafety({ score: Number(data.score) || 0, grade: String(data.grade || "-") });
+                const s = { score: Number(data.score) || 0, grade: String(data.grade || "-") };
+                setSafety(s);
+                setSafetyCache(prev => ({ ...prev, [key]: s }));
             } catch (e) {
                 console.warn("safety API 호출 실패", e);
                 setSafety(null);
@@ -134,6 +142,11 @@ export default function MapView({
                             color={getColor(dong.danger)}
                             fillColor={getColor(dong.danger)}
                             fillOpacity={0.55}
+                            radius={
+                                selectedGu && selectedDong && selectedGu.guId === g.guId && selectedDong.id === dong.id && safety
+                                    ? 300 + (safety.score || 0) * 5
+                                    : 450 + dong.danger * 200
+                            }
                             eventHandlers={{
                                 click: () => onSelectFromMap(g.guId, dong),
                             }}
