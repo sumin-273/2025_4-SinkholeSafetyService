@@ -4,9 +4,10 @@ import { GuInfo } from "../data/guDongData";
 type Props = {
     zones: { id: string; name: string; danger: number }[];
     onSelect: (id: string) => void;
+    onRemoteSelect?: (p: { name: string; lat: number; lng: number }) => void;
 };
 
-export default function SearchBox({ zones, onSelect }: Props) {
+export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
     const [q, setQ] = useState("");
     const [open, setOpen] = useState(false);
     const [remote, setRemote] = useState<{ name: string; lat: number; lng: number } | null>(null);
@@ -122,6 +123,7 @@ export default function SearchBox({ zones, onSelect }: Props) {
                                 // 좌표 검색 결과 선택: 지도 이동은 부모가 처리해야 함
                                 setQ(remote.name);
                                 // onSelect를 zones id 기반으로 쓰는 구조라면, 지도 이동 로직을 상위에서 remote 좌표로 처리
+                                onRemoteSelect && onRemoteSelect(remote);
                             }}
                             style={{
                                 display: "flex",
@@ -135,12 +137,12 @@ export default function SearchBox({ zones, onSelect }: Props) {
                                 marginTop: 6,
                             }}
                             onMouseEnter={(e) =>
-                                ((e.currentTarget as HTMLDivElement).style.borderColor =
-                                    "#3b8cff")
+                            ((e.currentTarget as HTMLDivElement).style.borderColor =
+                                "#3b8cff")
                             }
                             onMouseLeave={(e) =>
-                                ((e.currentTarget as HTMLDivElement).style.borderColor =
-                                    "transparent")
+                            ((e.currentTarget as HTMLDivElement).style.borderColor =
+                                "transparent")
                             }
                         >
                             <span
