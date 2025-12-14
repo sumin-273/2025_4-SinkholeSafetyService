@@ -77,3 +77,10 @@ pids
 bower_components
 .lock-wscript
 *.tgz
+
+# Raw spatial data (keep generated centroids only)
+data/*.shp
+data/*.shx
+data/*.dbf
+data/*.prj
+data/seoul_sigungu_centroid.geojson
