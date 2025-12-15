@@ -1,3 +1,31 @@
+/* 지도에서 선택된 영역(폴리곤)에 적용할 스타일 */
+.map-selected-polygon {
+  stroke: #222;
+  stroke-width: 4px;
+  fill: none;
+  filter: drop-shadow(0 0 0.5rem #fff);
+}
+
+/* Custom Leaflet map tooltip styling */
+.custom-map-tooltip {
+  background: rgba(34, 40, 49, 0.95);
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  padding: 10px 16px;
+  font-size: 1rem;
+  font-weight: 500;
+  border: none;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  transition: box-shadow 0.2s;
+  pointer-events: none;
+}
+
+.custom-map-tooltip strong {
+  color: #ffe066;
+}
+
 .App {
   text-align: center;
 }
@@ -32,6 +60,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }

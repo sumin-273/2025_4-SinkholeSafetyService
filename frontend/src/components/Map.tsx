@@ -119,13 +119,24 @@ export default function MapView({
         const safety = safetyApiBlocked ? undefined : safetyCache[name];
         const danger = dangerByDong.get(name) ?? 3;
         const color = safety ? colorByGrade(safety.grade) : getColor(danger);
+        // 선택된 동이면: 테두리만 굵게, 내부는 기존 fillOpacity 유지
+        if (selectedDong && name === selectedDong.id) {
+            return {
+                color: "#222", // 진한 테두리
+                weight: 4,
+                fillColor: color,
+                fillOpacity: 0.65, // 기존과 동일
+                dashArray: '',
+            };
+        }
+        // 기본 스타일
         return {
             color: "#1b2332",
             weight: 0.6,
             fillColor: color,
             fillOpacity: 0.65,
         };
-    }, [dangerByDong, safetyCache, safetyApiBlocked]);
+    }, [dangerByDong, safetyCache, safetyApiBlocked, selectedDong]);
 
     const onEachFeature = useCallback((feature: any, layer: any) => {
         const name = feature?.properties?.ADM_NM || "";
@@ -137,7 +148,12 @@ export default function MapView({
         const label = safety
             ? `${guName ? `${guName} ` : ""}${name} · 등급 ${safety.grade} · 점수 ${safety.score}`
             : `${guName ? `${guName} ` : ""}${name} · 위험도 ${danger}`;
-        layer.bindTooltip(label);
+        layer.bindTooltip(label, {
+            className: 'custom-map-tooltip',
+            direction: 'top',
+            sticky: true,
+            offset: [0, -8],
+        });
 
         const ensureSafety = async () => {
             if (!entry || safetyCache[key] || safetyApiBlocked) return;
