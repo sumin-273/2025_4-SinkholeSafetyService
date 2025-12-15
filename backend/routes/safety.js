@@ -191,12 +191,32 @@ async function fetchFromAPI(gu, dong) {
     let url = `${API_BASE_URL}?${params.toString()}`;
     console.log(`MOLIT 호출: ${url.substring(0, 100)}...`);
 
-    let response = await fetch(url, { timeout: 10000 });
+    let response = await fetch(url, {
+        timeout: 10000,
+        headers: {
+            // 일부 공공 API가 User-Agent/Accept를 요구할 수 있음
+            "Accept": "application/json",
+            "User-Agent": "SinkholeSafetyService/1.0 (+http://localhost:3001)"
+        }
+    });
 
     if (!response.ok) {
         console.warn(`MOLIT API 오류: ${response.status}`);
         const errorText = await response.text();
         console.warn(`응답 내용: ${errorText.substring(0, 200)}`);
+        // 403인 경우 즉시 사고 프록시로 대체 시도
+        if (response.status === 403) {
+            try {
+                const proxy = await fetchAccidentProxy(String(gu), String(dong));
+                if (proxy) {
+                    _cache[cacheKey] = proxy;
+                    _cacheTime[cacheKey] = now;
+                    return proxy;
+                }
+            } catch (e) {
+                console.warn("403 프록시 대체 실패:", e.message);
+            }
+        }
         throw new Error(`API 응답 오류: ${response.status}`);
     }
 
