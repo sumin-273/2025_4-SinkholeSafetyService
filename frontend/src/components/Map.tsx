@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     MapContainer,
     TileLayer,
@@ -8,13 +8,17 @@ import {
     useMapEvents,
 } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
-import { guDongData, DongInfo, GuInfo } from "../data/guDongData";
+import { DongInfo, GuInfo, GuWithDongs } from "../data/guDongData";
+import "leaflet-heatmap";
+// HeatmapOverlay is provided by leaflet-heatmap via global scope
+declare const HeatmapOverlay: any;
 import { fetchSafetyScores } from "../api";
 
 type Props = {
     selectedGuId: string | null;
     selectedDong: DongInfo | null;
     onSelectFromMap: (guId: string | null, dong: DongInfo | null) => void;
+    guDongData: GuWithDongs[];
 };
 
 const SEOUL_CENTER: LatLngExpression = [37.5665, 126.9780];
@@ -67,9 +71,12 @@ export default function MapView({
     selectedGuId,
     selectedDong,
     onSelectFromMap,
+    guDongData,
 }: Props) {
     const [zoom, setZoom] = useState(12);
     const [safety, setSafety] = useState<{ score: number; grade: string } | null>(null);
+    const [showHeatmap, setShowHeatmap] = useState(false);
+    // 등급 정보 팝업은 InfoPanel로 이동
     const selectedGu = selectedGuId
         ? guDongData.find((g) => g.guId === selectedGuId) ?? null
         : null;
@@ -104,6 +111,13 @@ export default function MapView({
         run();
     }, [selectedGu?.guName, selectedDong?.id]);
 
+    // Prepare heatmap data (use dongs of selected gu if selected, else all)
+    const heatmapData = useMemo(() => {
+        const source = selectedGu ? selectedGu.dongs : guDongData.flatMap((g) => g.dongs);
+        const points = source.map((d) => ({ lat: d.lat, lng: d.lng, value: d.danger }));
+        return { max: 5, data: points };
+    }, [selectedGu]);
+
     return (
         <MapContainer
             center={SEOUL_CENTER}
@@ -119,8 +133,34 @@ export default function MapView({
             <FlyToGu gu={selectedGu} />
             <FlyToDong dong={selectedDong} />
 
+            {/* Heatmap toggle button */}
+            <div
+                style={{ position: "absolute", top: 70, left: 16, zIndex: 1000 }}
+            >
+                <button
+                    onClick={() => setShowHeatmap((v) => !v)}
+                    style={{
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #2b3b56",
+                        background: showHeatmap ? "#16355f" : "#0d1b2f",
+                        color: "#cfd6e1",
+                        cursor: "pointer",
+                    }}
+                >
+                    {showHeatmap ? "히트맵 끄기" : "히트맵 켜기"}
+                </button>
+            </div>
+
+            {/* Heatmap overlay */}
+            {showHeatmap && (
+                <HeatmapController data={heatmapData} />
+            )}
+
+
             {/* 구 원 */}
-            {!showDongCircles &&
+            {
+                !showDongCircles &&
                 guDongData.map((gu) => (
                     <Circle
                         key={gu.guId}
@@ -138,10 +178,12 @@ export default function MapView({
                             <div>위험도 {gu.danger}</div>
                         </Tooltip>
                     </Circle>
-                ))}
+                ))
+            }
 
             {/* 동 원 */}
-            {showDongCircles &&
+            {
+                showDongCircles &&
                 guDongData.flatMap((g) =>
                     g.dongs.map((dong) => (
                         <Circle
@@ -149,7 +191,7 @@ export default function MapView({
                             center={[dong.lat, dong.lng]}
                             radius={
                                 selectedGu && selectedDong && selectedGu.guId === g.guId && selectedDong.id === dong.id && safety
-                                    ? 300 + (safety.score || 0) * 5
+                                    ? 500 + (safety.score || 0) * 8
                                     : 450 + dong.danger * 200
                             }
                             color={
@@ -178,7 +220,30 @@ export default function MapView({
                             </Tooltip>
                         </Circle>
                     ))
-                )}
-        </MapContainer>
+                )
+            }
+        </MapContainer >
     );
+}
+
+// Controller to integrate leaflet-heatmap with React Leaflet map
+function HeatmapController({ data }: { data: { max: number; data: Array<{ lat: number; lng: number; value: number }> } }) {
+    const map = useMap();
+    useEffect(() => {
+        const overlay = new HeatmapOverlay({
+            radius: 25,
+            maxOpacity: 0.6,
+            scaleRadius: true,
+            useLocalExtrema: false,
+            latField: "lat",
+            lngField: "lng",
+            valueField: "value",
+        });
+        overlay.addTo(map);
+        overlay.setData(data);
+        return () => {
+            try { overlay.remove(); } catch { /* ignore */ }
+        };
+    }, [map, data]);
+    return null;
 }

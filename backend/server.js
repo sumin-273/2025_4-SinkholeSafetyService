@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import geocode from "./routes/geocode.js";
 import districts from "./routes/districts.js";
 import safety from "./routes/safety.js";
+import safetyBulk from "./routes/safety-bulk.js";
 import notices from "./routes/notices.js";
 
 
@@ -21,12 +22,15 @@ const app = express();
 
 // 미들웨어
 app.use(cors());
-app.use(express.json());
+// 큰 본문 요청 처리 (기본값 ~100KB를 상향)
+app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ limit: "5mb", extended: true }));
 
 //api 라우트 등록
 app.use("/api/geocode", geocode);
 app.use("/api/districts", districts);
 app.use("/api/safety", safety);
+app.use("/api/safety-bulk", safetyBulk);
 app.use("/api/notices", notices);
 
 // hello 

@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { guDongData, DongInfo } from "../data/guDongData";
+import { DongInfo, GuWithDongs } from "../data/guDongData";
 
 type Props = {
     selectedGuId: string | null;
     selectedDong: DongInfo | null;
     onSelectGu: (id: string) => void;
     onSelectDong: (dong: DongInfo) => void;
+    guDongData: GuWithDongs[];
 };
 
 function getColor(level: number) {
@@ -15,13 +16,14 @@ function getColor(level: number) {
     return "#69db7c";
 }
 
-export default function LeftTab({ selectedGuId, selectedDong, onSelectGu, onSelectDong }: Props) {
+export default function LeftTab({ selectedGuId, selectedDong, onSelectGu, onSelectDong, guDongData }: Props) {
     const [openGuId, setOpenGuId] = useState<string | null>(null);
 
     return (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "grid", gap: 12, height: "100vh", boxSizing: "border-box" }}>
             <h1 className="section-title" style={{ color: "white" }}>싱크홀 안전도 서비스</h1>
 
+            <div style={{ overflowY: "auto", paddingRight: 6 }}>
             {guDongData.map((gu) => {
                 const isActive = gu.guId === selectedGuId;
                 const isOpened = openGuId === gu.guId;
@@ -89,6 +91,7 @@ export default function LeftTab({ selectedGuId, selectedDong, onSelectGu, onSele
                     </div>
                 );
             })}
+            </div>
         </div>
     );
 }

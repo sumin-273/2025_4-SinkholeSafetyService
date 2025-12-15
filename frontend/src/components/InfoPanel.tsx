@@ -28,6 +28,7 @@ export default function InfoPanel({ gu, dong }: Props) {
     const [notices, setNotices] = useState<Notice[]>([]);
     const [loading, setLoading] = useState(false);
     const [safety, setSafety] = useState<{ score: number; grade: string } | null>(null);
+    const [showGradeInfo, setShowGradeInfo] = useState(false);
 
     // notices API 호출
     useEffect(() => {
@@ -84,9 +85,55 @@ export default function InfoPanel({ gu, dong }: Props) {
     // ---------------------------------------------
     if (!gu && !dong) {
         return (
-            <div className="card">
+            <div className="card" style={{ position: "relative" }}>
                 <div className="section-title">지역 정보</div>
                 <div>지도의 구 또는 동을 선택해주세요.</div>
+                {/* 항상 표시: 등급 기준 버튼 */}
+                <div style={{ position: "fixed", right: 24, bottom: 24, zIndex: 1002 }}>
+                    {showGradeInfo && (
+                        <div
+                            style={{
+                                position: "fixed",
+                                right: 24,
+                                bottom: 86,
+                                background: "#0c1220",
+                                border: "1px solid #2b3b56",
+                                borderRadius: 12,
+                                padding: 16,
+                                width: 320,
+                                maxHeight: 380,
+                                overflowY: "auto",
+                                boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+                                zIndex: 1003,
+                            }}
+                        >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                <h3 style={{ color: "#fff", margin: 0, fontSize: 16 }}>🎯 위험도 등급 기준</h3>
+                                <button onClick={() => setShowGradeInfo(false)} style={{ background: "transparent", border: "none", color: "#8a95a8", cursor: "pointer", fontSize: 20 }}>×</button>
+                            </div>
+                            <div style={{ fontSize: 12, color: "#8a95a8", marginBottom: 10 }}>국토교통부 표준 준용</div>
+                            {[
+                                { grade: "A", range: "80~100점", danger: 1, color: "#69db7c", desc: "매우 안전" },
+                                { grade: "B", range: "60~79점", danger: 2, color: "#ffe066", desc: "안전" },
+                                { grade: "C", range: "40~59점", danger: 3, color: "#ffa94d", desc: "보통" },
+                                { grade: "D", range: "20~39점", danger: 4, color: "#ff4d4f", desc: "위험" },
+                                { grade: "E", range: "0~19점", danger: 5, color: "#c92a2a", desc: "매우 위험" },
+                            ].map(item => (
+                                <div key={item.grade} style={{ display: "flex", alignItems: "center", padding: 8, marginBottom: 6, background: "#0d1b2f", borderRadius: 8, border: "1px solid #1b2332" }}>
+                                    <span style={{ width: 14, height: 14, borderRadius: "50%", background: item.color, marginRight: 10 }} />
+                                    <div style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{item.grade}등급 <span style={{ color: "#8a95a8", fontWeight: 400 }}>({item.range})</span></div>
+                                    <div style={{ marginLeft: "auto", color: "#8a95a8", fontSize: 11 }}>위험도 {item.danger}</div>
+                                </div>
+                            ))}
+                            <div style={{ borderTop: "1px solid #1b2332", paddingTop: 8, color: "#8a95a8", fontSize: 11 }}>
+                                • 최근성: 1개월 내 사고 30점<br />
+                                • 건수: 사고 1건당 3점<br />
+                                • 위치: 정확 매칭 시 1.5배
+                            </div>
+                        </div>
+                    )}
+                    <button onClick={() => setShowGradeInfo(v => !v)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #2b3b56", background: showGradeInfo ? "#16355f" : "#0d1b2f", color: "#cfd6e1", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>📊 등급 기준</button>
+                </div>
             </div>
         );
     }
@@ -98,7 +145,7 @@ export default function InfoPanel({ gu, dong }: Props) {
         const color = getColor(dong.danger);
 
         return (
-            <div className="card" style={{ display: "grid", gap: 14 }}>
+            <div className="card" style={{ display: "grid", gap: 14, position: "relative" }}>
                 <div className="section-title">선택된 동</div>
 
                 {/* 동 이름 + 색상 */}
@@ -154,6 +201,53 @@ export default function InfoPanel({ gu, dong }: Props) {
                         <div style={{ padding: "10px 0", color: "#98a7b5" }}>해당 지역 공지사항이 없습니다</div>
                     )}
                 </div>
+
+                {/* 등급 기준 버튼 + 팝업 (우측 하단 고정) */}
+                <div style={{ position: "fixed", right: 24, bottom: 24, zIndex: 1002 }}>
+                    {showGradeInfo && (
+                        <div
+                            style={{
+                                position: "fixed",
+                                right: 24,
+                                bottom: 86,
+                                background: "#0c1220",
+                                border: "1px solid #2b3b56",
+                                borderRadius: 12,
+                                padding: 16,
+                                width: 320,
+                                maxHeight: 380,
+                                overflowY: "auto",
+                                boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+                                zIndex: 1003,
+                            }}
+                        >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                <h3 style={{ color: "#fff", margin: 0, fontSize: 16 }}>🎯 위험도 등급 기준</h3>
+                                <button onClick={() => setShowGradeInfo(false)} style={{ background: "transparent", border: "none", color: "#8a95a8", cursor: "pointer", fontSize: 20 }}>×</button>
+                            </div>
+                            <div style={{ fontSize: 12, color: "#8a95a8", marginBottom: 10 }}>국토교통부 표준 준용</div>
+                            {[
+                                { grade: "A", range: "80~100점", danger: 1, color: "#69db7c", desc: "매우 안전" },
+                                { grade: "B", range: "60~79점", danger: 2, color: "#ffe066", desc: "안전" },
+                                { grade: "C", range: "40~59점", danger: 3, color: "#ffa94d", desc: "보통" },
+                                { grade: "D", range: "20~39점", danger: 4, color: "#ff4d4f", desc: "위험" },
+                                { grade: "E", range: "0~19점", danger: 5, color: "#c92a2a", desc: "매우 위험" },
+                            ].map(item => (
+                                <div key={item.grade} style={{ display: "flex", alignItems: "center", padding: 8, marginBottom: 6, background: "#0d1b2f", borderRadius: 8, border: "1px solid #1b2332" }}>
+                                    <span style={{ width: 14, height: 14, borderRadius: "50%", background: item.color, marginRight: 10 }} />
+                                    <div style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{item.grade}등급 <span style={{ color: "#8a95a8", fontWeight: 400 }}>({item.range})</span></div>
+                                    <div style={{ marginLeft: "auto", color: "#8a95a8", fontSize: 11 }}>위험도 {item.danger}</div>
+                                </div>
+                            ))}
+                            <div style={{ borderTop: "1px solid #1b2332", paddingTop: 8, color: "#8a95a8", fontSize: 11 }}>
+                                • 최근성: 1개월 내 사고 30점<br />
+                                • 건수: 사고 1건당 3점<br />
+                                • 위치: 정확 매칭 시 1.5배
+                            </div>
+                        </div>
+                    )}
+                    <button onClick={() => setShowGradeInfo(v => !v)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #2b3b56", background: showGradeInfo ? "#16355f" : "#0d1b2f", color: "#cfd6e1", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>📊 등급 기준</button>
+                </div>
             </div>
         );
     }
@@ -165,7 +259,7 @@ export default function InfoPanel({ gu, dong }: Props) {
         const color = getColor(gu.danger);
 
         return (
-            <div className="card" style={{ display: "grid", gap: 14 }}>
+            <div className="card" style={{ display: "grid", gap: 14, position: "relative" }}>
                 <div className="section-title">선택된 구</div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -213,6 +307,53 @@ export default function InfoPanel({ gu, dong }: Props) {
                     ) : (
                         <div style={{ padding: "10px 0", color: "#98a7b5" }}>해당 지역 공지사항이 없습니다</div>
                     )}
+                </div>
+
+                {/* 등급 기준 버튼 + 팝업 (우측 하단 고정) */}
+                <div style={{ position: "fixed", right: 24, bottom: 24, zIndex: 1002 }}>
+                    {showGradeInfo && (
+                        <div
+                            style={{
+                                position: "fixed",
+                                right: 24,
+                                bottom: 86,
+                                background: "#0c1220",
+                                border: "1px solid #2b3b56",
+                                borderRadius: 12,
+                                padding: 16,
+                                width: 320,
+                                maxHeight: 380,
+                                overflowY: "auto",
+                                boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+                                zIndex: 1003,
+                            }}
+                        >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                <h3 style={{ color: "#fff", margin: 0, fontSize: 16 }}>🎯 위험도 등급 기준</h3>
+                                <button onClick={() => setShowGradeInfo(false)} style={{ background: "transparent", border: "none", color: "#8a95a8", cursor: "pointer", fontSize: 20 }}>×</button>
+                            </div>
+                            <div style={{ fontSize: 12, color: "#8a95a8", marginBottom: 10 }}>국토교통부 표준 준용</div>
+                            {[
+                                { grade: "A", range: "80~100점", danger: 1, color: "#69db7c", desc: "매우 안전" },
+                                { grade: "B", range: "60~79점", danger: 2, color: "#ffe066", desc: "안전" },
+                                { grade: "C", range: "40~59점", danger: 3, color: "#ffa94d", desc: "보통" },
+                                { grade: "D", range: "20~39점", danger: 4, color: "#ff4d4f", desc: "위험" },
+                                { grade: "E", range: "0~19점", danger: 5, color: "#c92a2a", desc: "매우 위험" },
+                            ].map(item => (
+                                <div key={item.grade} style={{ display: "flex", alignItems: "center", padding: 8, marginBottom: 6, background: "#0d1b2f", borderRadius: 8, border: "1px solid #1b2332" }}>
+                                    <span style={{ width: 14, height: 14, borderRadius: "50%", background: item.color, marginRight: 10 }} />
+                                    <div style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{item.grade}등급 <span style={{ color: "#8a95a8", fontWeight: 400 }}>({item.range})</span></div>
+                                    <div style={{ marginLeft: "auto", color: "#8a95a8", fontSize: 11 }}>위험도 {item.danger}</div>
+                                </div>
+                            ))}
+                            <div style={{ borderTop: "1px solid #1b2332", paddingTop: 8, color: "#8a95a8", fontSize: 11 }}>
+                                • 최근성: 1개월 내 사고 30점<br />
+                                • 건수: 사고 1건당 3점<br />
+                                • 위치: 정확 매칭 시 1.5배
+                            </div>
+                        </div>
+                    )}
+                    <button onClick={() => setShowGradeInfo(v => !v)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #2b3b56", background: showGradeInfo ? "#16355f" : "#0d1b2f", color: "#cfd6e1", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>📊 등급 기준</button>
                 </div>
             </div>
         );

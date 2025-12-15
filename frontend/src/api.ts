@@ -68,13 +68,8 @@ export async function fetchDistricts() {
 
 // geocode API 연동 함수
 export async function fetchGeocode(address: string) {
-    const response = await fetch('api/geocode', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ address }),
-    });
+    const q = new URLSearchParams({ q: address }).toString();
+    const response = await fetch(`/api/geocode?${q}`);
     if (!response.ok) throw new Error('Failed to fetch geocode');
     return response.json();
 }
