@@ -200,31 +200,6 @@ export default function MapView({
                 />
             )}
 
-
-            {/* 범례 */}
-            <div
-                style={{
-                    position: "absolute",
-                    bottom: 16,
-                    left: 16,
-                    padding: "10px 12px",
-                    background: "#0c1220",
-                    border: "1px solid #1b2332",
-                    borderRadius: 10,
-                    color: "#cfd6e1",
-                    fontSize: 12,
-                    zIndex: 1000,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-                }}
-            >
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>위험도 범례</div>
-                {[1, 2, 3, 4, 5].map((d) => (
-                    <div key={d} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                        <span style={{ width: 14, height: 14, borderRadius: "50%", background: getColor(d) }} />
-                        <span>위험도 {d}</span>
-                    </div>
-                ))}
-            </div>
         </MapContainer >
     );
 }

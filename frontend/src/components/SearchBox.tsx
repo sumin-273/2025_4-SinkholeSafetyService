@@ -94,12 +94,12 @@ export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
                                 color: "white",
                             }}
                             onMouseEnter={(e) =>
-                                ((e.currentTarget as HTMLDivElement).style.borderColor =
-                                    "#3b8cff")
+                            ((e.currentTarget as HTMLDivElement).style.borderColor =
+                                "#3b8cff")
                             }
                             onMouseLeave={(e) =>
-                                ((e.currentTarget as HTMLDivElement).style.borderColor =
-                                    "transparent")
+                            ((e.currentTarget as HTMLDivElement).style.borderColor =
+                                "transparent")
                             }
                         >
                             <span
@@ -113,7 +113,7 @@ export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
                             <div style={{ fontWeight: 600 }}>{z.name}</div>
                         </div>
                     ))}
-                    
+
                     {/* 원격(Kakao) 결과 한 줄 표시 */}
                     {remote && results.length === 0 && (
                         <div
