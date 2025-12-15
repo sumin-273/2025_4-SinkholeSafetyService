@@ -59,7 +59,7 @@ export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
                 }}
             />
 
-            {open && (
+            {open && (results.length > 0 || remote) && (
                 <div
                     className="card"
                     style={{
@@ -74,8 +74,48 @@ export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
                         boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
                     }}
                 >
+                    {/* 로컬 구 목록 결과 */}
+                    {results.map((z) => (
+                        <div
+                            key={z.id}
+                            onMouseDown={() => {
+                                setQ(z.name);
+                                onSelect(z.id);
+                                setOpen(false);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "8px 10px",
+                                borderRadius: 8,
+                                cursor: "pointer",
+                                border: "1px solid transparent",
+                                color: "white",
+                            }}
+                            onMouseEnter={(e) =>
+                                ((e.currentTarget as HTMLDivElement).style.borderColor =
+                                    "#3b8cff")
+                            }
+                            onMouseLeave={(e) =>
+                                ((e.currentTarget as HTMLDivElement).style.borderColor =
+                                    "transparent")
+                            }
+                        >
+                            <span
+                                style={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: "50%",
+                                    background: getColor(z.danger),
+                                }}
+                            />
+                            <div style={{ fontWeight: 600 }}>{z.name}</div>
+                        </div>
+                    ))}
+                    
                     {/* 원격(Kakao) 결과 한 줄 표시 */}
-                    {remote && (
+                    {remote && results.length === 0 && (
                         <div
                             onMouseDown={() => {
                                 // 좌표 검색 결과 선택: 지도 이동은 부모가 처리해야 함

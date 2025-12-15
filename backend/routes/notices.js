@@ -20,7 +20,6 @@ async function fetchFromAPI(keywords = "", limit = 10) {
 
     // 캐시 확인
     if (_cache && now - _cacheTime < TTL_MS) {
-        console.log("캐시에서 공지사항 반환");
         return filterAndLimit(_cache, keywords, limit);
     }
 
@@ -33,7 +32,6 @@ async function fetchFromAPI(keywords = "", limit = 10) {
         });
 
         const url = `${API_BASE_URL}?${params}`;
-        console.log(`Notices API 호출: ${url}`);
 
         const response = await fetch(url, {
             timeout: 10000
@@ -44,7 +42,6 @@ async function fetchFromAPI(keywords = "", limit = 10) {
         }
 
         const data = await response.json();
-        console.log("Notices API 응답:", JSON.stringify(data).substring(0, 200));
 
         // API 응답 처리 (서울시만 필터링)
         if (data.body && Array.isArray(data.body)) {

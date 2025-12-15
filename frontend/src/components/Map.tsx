@@ -176,8 +176,8 @@ export default function MapView({
     return (
         <MapContainer
             center={SEOUL_CENTER}
-            zoom={12}
-            minZoom={12}
+            zoom={11}
+            minZoom={10}
             maxZoom={18}
             maxBounds={SEOUL_BOUNDS}
             maxBoundsViscosity={0.8}

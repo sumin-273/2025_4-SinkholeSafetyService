@@ -168,15 +168,15 @@ function matchesLocation(item, gu, dong) {
 }
 
 async function fetchFromAPI(gu, dong) {
-    if (!API_KEY) {
-        throw new Error("MOLIT_RISK_API_KEY가 설정되지 않았습니다");
+    if (!API_KEY || API_KEY === 'your_molit_key_here') {
+        // API 키가 없으면 null 반환 (폴백 로직이 처리)
+        return null;
     }
 
     const cacheKey = `${gu}-${dong}`;
     const now = Date.now();
 
     if (_cache[cacheKey] && now - _cacheTime[cacheKey] < TTL_MS) {
-        console.log(`캐시에서 반환: ${cacheKey}`);
         return _cache[cacheKey];
     }
 
@@ -189,7 +189,6 @@ async function fetchFromAPI(gu, dong) {
         returnType: "json"
     });
     let url = `${API_BASE_URL}?${params.toString()}`;
-    console.log(`MOLIT 호출: ${url.substring(0, 100)}...`);
 
     let response = await fetch(url, {
         timeout: 10000,
@@ -204,18 +203,9 @@ async function fetchFromAPI(gu, dong) {
         console.warn(`MOLIT API 오류: ${response.status}`);
         const errorText = await response.text();
         console.warn(`응답 내용: ${errorText.substring(0, 200)}`);
-        // 403인 경우 즉시 사고 프록시로 대체 시도
-        if (response.status === 403) {
-            try {
-                const proxy = await fetchAccidentProxy(String(gu), String(dong));
-                if (proxy) {
-                    _cache[cacheKey] = proxy;
-                    _cacheTime[cacheKey] = now;
-                    return proxy;
-                }
-            } catch (e) {
-                console.warn("403 프록시 대체 실패:", e.message);
-            }
+        // 401/403 인증 오류인 경우 null 반환 (폴백 로직이 처리)
+        if (response.status === 401 || response.status === 403) {
+            return null;
         }
         throw new Error(`API 응답 오류: ${response.status}`);
     }
@@ -230,23 +220,12 @@ async function fetchFromAPI(gu, dong) {
         throw new Error("API 응답 형식이 예상과 다릅니다");
     }
 
-    console.log(`[MOLIT] 총 아이템 수: ${Array.isArray(items) ? items.length : 0}`);
     const filtered = items.filter((item) => matchesLocation(item, gu, dong));
-    console.log(`[MOLIT] 필터 결과 수(${gu}/${dong}): ${filtered.length}`);
     const item = filtered[0];
 
-    // 목록에서 해당 구/동 매칭이 없으면 사고 프록시로 대체
+    // 목록에서 해당 구/동 매칭이 없으면 null 반환 (폴백 로직이 처리)
     if (!item) {
-        try {
-            const proxy = await fetchAccidentProxy(String(gu), String(dong));
-            if (proxy) {
-                _cache[cacheKey] = proxy;
-                _cacheTime[cacheKey] = now;
-                return proxy;
-            }
-        } catch (e) {
-            console.warn("목록 비어 프록시 실패:", e.message);
-        }
+        return null;
     }
 
     const grade = item ? pickGrade(item) : "";
