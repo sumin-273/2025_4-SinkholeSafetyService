@@ -12,11 +12,10 @@ const xmlParser = new XMLParser({
     parseAttributeValue: true
 });
 
-// ✅ 캐시 저장소 (10분 유효)
 let cachedData = null;
 let cacheTimestamp = null;
 let isUpdating = false;
-const CACHE_DURATION = 10 * 60 * 1000; // 10분
+const CACHE_DURATION = 10 * 60 * 1000;
 
 /* ---------------- 유틸 ---------------- */
 
@@ -27,21 +26,13 @@ function formatDate(d) {
     return `${y}${m}${day}`;
 }
 
-// ✅ 새로운 등급 기준 (4단계)
 function calcGrade(width, depth) {
     const w = Number(width || 0);
     const d = Number(depth || 0);
 
-    // D (4): depth ≥ 1.5 OR width ≥ 3.0
     if (d >= 1.5 || w >= 3.0) return { grade: "D", danger: 4 };
-
-    // C (3): depth ≥ 1.0 OR width ≥ 1.5
     if (d >= 1.0 || w >= 1.5) return { grade: "C", danger: 3 };
-
-    // B (2): depth ≥ 0.4 OR width ≥ 0.5
     if (d >= 0.4 || w >= 0.5) return { grade: "B", danger: 2 };
-
-    // A (1): depth < 0.4 AND width < 0.5
     return { grade: "A", danger: 1 };
 }
 
@@ -61,9 +52,7 @@ async function fetchSeoulSafetyData() {
     console.log("\n🔄 서울 지반침하 안전도 조회 시작\n");
 
     try {
-        // ========================================
         // 1단계: 서울 사고번호 수집
-        // ========================================
         console.log("📋 1단계: 서울 사고번호 수집 중...\n");
 
         const allSeoulSagoNos = [];
@@ -130,9 +119,7 @@ async function fetchSeoulSafetyData() {
         console.log(`✅ 1단계 완료: 총 ${allSeoulSagoNos.length}건 수집`);
         console.log(`📋 사고번호: ${allSeoulSagoNos.join(", ")}\n`);
 
-        // ========================================
         // 2단계: 상세 정보 조회
-        // ========================================
         console.log("📝 2단계: 상세 정보 조회 중...\n");
 
         const allResults = {};
@@ -168,17 +155,7 @@ async function fetchSeoulSafetyData() {
                         }
 
                         const retryXml = await retry.text();
-
-                        if (totalSuccess === 0) {
-                            console.log(`      🔍 XML 응답 샘플:\n${retryXml.substring(0, 500)}\n`);
-                        }
-
                         const retryData = xmlParser.parse(retryXml);
-
-                        if (totalSuccess === 0) {
-                            console.log(`      🔍 파싱 구조:`, JSON.stringify(retryData, null, 2).substring(0, 600), "\n");
-                        }
-
                         let retryDetail = retryData?.resonse?.body?.items?.item;
 
                         if (!retryDetail) {
@@ -191,7 +168,6 @@ async function fetchSeoulSafetyData() {
 
                         if (!rd || !rd.sigungu || !rd.dong) {
                             console.log(`      ⚠️  구/동 정보 없음`);
-                            console.log(`      🔍 실제 키:`, Object.keys(rd || {}));
                             totalFail++;
                             continue;
                         }
@@ -208,6 +184,7 @@ async function fetchSeoulSafetyData() {
 
                         console.log(`      📊 등급: ${grade.grade} (위험도 ${grade.danger})`);
 
+                        // ✅ 개별 사고 정보 저장
                         if (!allResults[key]) {
                             allResults[key] = {
                                 gu: sigungu,
@@ -215,6 +192,14 @@ async function fetchSeoulSafetyData() {
                                 grade: grade.grade,
                                 danger: grade.danger,
                                 accidentCount: 1,
+                                accidents: [{
+                                    sagoNo: rd.sagoNo,
+                                    width: sinkWidth,
+                                    depth: sinkDepth,
+                                    grade: grade.grade,
+                                    danger: grade.danger,
+                                    date: rd.sagoDate
+                                }]
                             };
                         } else {
                             const worstGrade = worse(allResults[key], grade);
@@ -224,6 +209,15 @@ async function fetchSeoulSafetyData() {
                                 danger: worstGrade.danger,
                                 accidentCount: allResults[key].accidentCount + 1,
                             };
+                            // ✅ 사고 목록에 추가
+                            allResults[key].accidents.push({
+                                sagoNo: rd.sagoNo,
+                                width: sinkWidth,
+                                depth: sinkDepth,
+                                grade: grade.grade,
+                                danger: grade.danger,
+                                date: rd.sagoDate
+                            });
                         }
 
                         totalSuccess++;
@@ -241,17 +235,7 @@ async function fetchSeoulSafetyData() {
                 }
 
                 const detailXml = await r.text();
-
-                if (totalSuccess === 0) {
-                    console.log(`      🔍 XML 응답 샘플:\n${detailXml.substring(0, 500)}\n`);
-                }
-
                 const detailData = xmlParser.parse(detailXml);
-
-                if (totalSuccess === 0) {
-                    console.log(`      🔍 파싱 구조:`, JSON.stringify(detailData, null, 2).substring(0, 600), "\n");
-                }
-
                 let detail = detailData?.resonse?.body?.items?.item;
 
                 if (!detail) {
@@ -264,7 +248,6 @@ async function fetchSeoulSafetyData() {
 
                 if (!d || !d.sigungu || !d.dong) {
                     console.log(`      ⚠️  구/동 정보 없음`);
-                    console.log(`      🔍 실제 키:`, Object.keys(d || {}));
                     totalFail++;
                     continue;
                 }
@@ -281,6 +264,7 @@ async function fetchSeoulSafetyData() {
 
                 console.log(`      📊 등급: ${grade.grade} (위험도 ${grade.danger})`);
 
+                // ✅ 개별 사고 정보 저장
                 if (!allResults[key]) {
                     allResults[key] = {
                         gu: sigungu,
@@ -288,6 +272,14 @@ async function fetchSeoulSafetyData() {
                         grade: grade.grade,
                         danger: grade.danger,
                         accidentCount: 1,
+                        accidents: [{
+                            sagoNo: d.sagoNo,
+                            width: sinkWidth,
+                            depth: sinkDepth,
+                            grade: grade.grade,
+                            danger: grade.danger,
+                            date: d.sagoDate
+                        }]
                     };
                 } else {
                     const worstGrade = worse(allResults[key], grade);
@@ -297,6 +289,15 @@ async function fetchSeoulSafetyData() {
                         danger: worstGrade.danger,
                         accidentCount: allResults[key].accidentCount + 1,
                     };
+                    // ✅ 사고 목록에 추가
+                    allResults[key].accidents.push({
+                        sagoNo: d.sagoNo,
+                        width: sinkWidth,
+                        depth: sinkDepth,
+                        grade: grade.grade,
+                        danger: grade.danger,
+                        date: d.sagoDate
+                    });
                 }
 
                 totalSuccess++;
@@ -313,9 +314,13 @@ async function fetchSeoulSafetyData() {
             console.log("");
         }
 
-        // ========================================
-        // 결과 정리 및 캐시 저장
-        // ========================================
+        // ✅ 각 동의 사고 목록을 위험도 순으로 정렬
+        Object.values(allResults).forEach((result) => {
+            if (result.accidents) {
+                result.accidents.sort((a, b) => b.danger - a.danger);
+            }
+        });
+
         const results = Object.values(allResults).sort((a, b) => {
             if (b.danger !== a.danger) return b.danger - a.danger;
             return b.accidentCount - a.accidentCount;
@@ -333,7 +338,6 @@ async function fetchSeoulSafetyData() {
             });
         }
 
-        // ✅ 캐시 저장
         cachedData = {
             data: results,
             meta: {
@@ -429,8 +433,6 @@ router.get("/status", (req, res) => {
         lastFetched: cachedData.meta.fetchedAt
     });
 });
-
-/* ---------------- 서버 시작 시 자동 실행 + 10분마다 갱신 ---------------- */
 
 console.log("\n🚀 서버 시작: 초기 데이터 수집 시작...\n");
 fetchSeoulSafetyData().catch(console.error);

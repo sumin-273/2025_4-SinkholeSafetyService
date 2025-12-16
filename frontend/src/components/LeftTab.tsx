@@ -16,7 +16,6 @@ function colorByGrade(grade: string) {
         case "B": return "#ffe066";
         case "C": return "#ffa94d";
         case "D": return "#ff4d4f";
-        case "E": return "#c92a2a";
         default: return "#adb5bd";
     }
 }
@@ -40,20 +39,44 @@ export default function LeftTab({
         grade: string;
         danger: number;
         gu: string;
+        accidentCount: number;
     }>>({});
+
+    const [loading, setLoading] = useState(true);
 
     /* ✅ 서울 전체 안전도 API 단 1회 호출 */
     useEffect(() => {
+        console.log("🔍 왼쪽 탭: API 호출 시작");
+        setLoading(true);
+
         fetch("/api/safety/seoul")
-            .then((r) => r.json())
-            .then((data) => {
+            .then((r) => {
+                console.log("✅ 왼쪽 탭: 응답 받음", r.status);
+                return r.json();
+            })
+            .then((response) => {
+                console.log("📦 왼쪽 탭: 원본 응답", response);
+
+                const data = response.data || [];
+                console.log("📊 왼쪽 탭: 데이터 배열", data);
+                console.log("📊 왼쪽 탭: 데이터 개수", data.length);
+
                 const map: any = {};
                 data.forEach((d: any) => {
-                    map[d.dong] = d; // key: 역삼동
+                    console.log(`   - ${d.gu} ${d.dong}: ${d.grade}등급 (사고 ${d.accidentCount}건)`);
+                    map[d.dong] = d; // key: 역삼동 (법정동)
                 });
+
+                console.log("🗺️ 왼쪽 탭: 생성된 맵", map);
+                console.log("🗺️ 왼쪽 탭: 맵 키 목록", Object.keys(map));
+
                 setSafetyByDong(map);
+                setLoading(false);
             })
-            .catch(console.error);
+            .catch((err) => {
+                console.error("❌ 왼쪽 탭: API 에러", err);
+                setLoading(false);
+            });
     }, []);
 
     return (
@@ -61,6 +84,12 @@ export default function LeftTab({
             <h1 className="section-title" style={{ color: "white" }}>
                 싱크홀 안전도 서비스
             </h1>
+
+            {loading && (
+                <div style={{ color: "#8a95a8", fontSize: 12, padding: "0 12px" }}>
+                    🔄 안전도 데이터 로딩 중...
+                </div>
+            )}
 
             <div style={{ overflowY: "auto", paddingRight: 6 }}>
                 {guDongData.map((gu) => {
@@ -97,38 +126,69 @@ export default function LeftTab({
                                     {gu.dongs.map((dong) => {
                                         const dongActive = selectedDong?.id === dong.id;
 
-                                        const apiKey = normalizeDongName(dong.id);
-                                        const info = safetyByDong[apiKey];
+                                        // ✅ 행정동 → 법정동 변환
+                                        const normalizedDongName = normalizeDongName(dong.id);
+
+                                        // ✅ API 데이터에서 찾기
+                                        const info = safetyByDong[normalizedDongName];
+
+                                        // ✅ 디버깅 로그 (첫 번째 동만)
+                                        if (gu.dongs[0].id === dong.id && !loading) {
+                                            console.log(`🔍 매칭 체크: ${dong.id} (행정동) → ${normalizedDongName} (법정동)`);
+                                            console.log(`   safetyByDong[${normalizedDongName}] =`, info);
+                                        }
+
+                                        // ✅ 데이터 없으면 A등급
+                                        const grade = info ? info.grade : "A";
 
                                         return (
                                             <button
                                                 key={dong.id}
                                                 onClick={() => onSelectDong(dong)}
                                                 style={{
-                                                    padding: "6px 10px",
+                                                    padding: "8px 12px",
                                                     borderRadius: 8,
                                                     border: "1px solid #1b2332",
                                                     background: dongActive ? "#112233" : "#0c1220",
                                                     color: "white",
                                                     display: "flex",
                                                     justifyContent: "space-between",
+                                                    alignItems: "center",
                                                     cursor: "pointer",
                                                 }}
                                             >
                                                 <span>{dong.id}</span>
 
-                                                {info ? (
+                                                {/* ✅ 등급 색상 점 + 텍스트 */}
+                                                <div style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 6
+                                                }}>
                                                     <span
                                                         style={{
-                                                            color: colorByGrade(info.grade),
+                                                            width: 10,
+                                                            height: 10,
+                                                            borderRadius: "50%",
+                                                            background: colorByGrade(grade),
+                                                            display: "inline-block"
+                                                        }}
+                                                    />
+                                                    <span
+                                                        style={{
+                                                            color: colorByGrade(grade),
                                                             fontWeight: 600,
+                                                            fontSize: 13
                                                         }}
                                                     >
-                                                        {info.grade}
+                                                        {grade}
+                                                        {info && (
+                                                            <span style={{ fontSize: 10, marginLeft: 2, color: "#6c757d" }}>
+                                                                ({info.accidentCount})
+                                                            </span>
+                                                        )}
                                                     </span>
-                                                ) : (
-                                                    <span style={{ color: "#888" }}>–</span>
-                                                )}
+                                                </div>
                                             </button>
                                         );
                                     })}

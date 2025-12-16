@@ -349,7 +349,7 @@ router.get("/", async (req, res) => {
             const dongHash = String(req.query.dong || "").charCodeAt(0) || 0;
             const score = 30 + ((guHash + dongHash) % 50);
             const grade = scoreToGrade(score);
-            
+
             return res.json({
                 location: { gu: String(req.query.gu || ""), dong: String(req.query.dong || "") },
                 score,
@@ -521,7 +521,7 @@ router.get("/evalution", async (req, res) => {
         // API 호출 실패 시 테스트 데이터 반환 (개발/테스트용)
         const gu = String(req.query.gu || "").trim();
         const dong = String(req.query.dong || "").trim();
-        
+
         // 지역별 테스트 평가 데이터
         const testEvaluations = {
             "강남구:역삼동": { grade: "A", score: 85 },
