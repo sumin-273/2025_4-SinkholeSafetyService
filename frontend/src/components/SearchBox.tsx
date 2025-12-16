@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { GuInfo } from "../data/guDongData";
 
+// 환경변수에서 API URL 가져오기
+const API_BASE = process.env.REACT_APP_API_BASE || '';
+
 type Props = {
     zones: { id: string; name: string; danger: number }[];
     onSelect: (id: string) => void;
@@ -20,7 +23,8 @@ export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
 
     async function searchRemote(text: string) {
         try {
-            const resp = await fetch(`http://localhost:3001/api/geocode?q=${encodeURIComponent(text)}`);
+            // ← 환경변수 사용
+            const resp = await fetch(`${API_BASE}/api/geocode?q=${encodeURIComponent(text)}`);
             if (!resp.ok) { setRemote(null); return; }
             const data = await resp.json();
             setRemote({ name: data.place_name || text, lat: data.lat, lng: data.lng });
@@ -39,7 +43,6 @@ export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
                     const v = e.target.value;
                     setQ(v);
                     setOpen(true);
-                    // 원격 지오코드 병행 (디바운스 생략: 간단 구현)
                     if (v.trim().length >= 2) {
                         searchRemote(v.trim());
                     } else {
@@ -118,9 +121,7 @@ export default function SearchBox({ zones, onSelect, onRemoteSelect }: Props) {
                     {remote && results.length === 0 && (
                         <div
                             onMouseDown={() => {
-                                // 좌표 검색 결과 선택: 지도 이동은 부모가 처리해야 함
                                 setQ(remote.name);
-                                // onSelect를 zones id 기반으로 쓰는 구조라면, 지도 이동 로직을 상위에서 remote 좌표로 처리
                                 onRemoteSelect && onRemoteSelect(remote);
                             }}
                             style={{

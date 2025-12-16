@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { DongInfo, GuWithDongs } from "../data/guDongData";
 
+// ✅ 환경변수 추가
+const API_BASE = process.env.REACT_APP_API_BASE || '';
+
 type Props = {
     selectedGuId: string | null;
     selectedDong: DongInfo | null;
@@ -9,7 +12,7 @@ type Props = {
     guDongData: GuWithDongs[];
 };
 
-/* 🔴 Map과 동일한 색상 기준 */
+/* Map과 동일한 색상 기준 */
 function colorByGrade(grade: string) {
     switch (grade) {
         case "A": return "#69db7c";
@@ -20,7 +23,7 @@ function colorByGrade(grade: string) {
     }
 }
 
-/* 🔴 동 이름 정규화 (역삼1동 → 역삼동) */
+/* 동 이름 정규화 (역삼1동 → 역삼동) */
 function normalizeDongName(name: string) {
     return name.replace(/[0-9]/g, "");
 }
@@ -34,7 +37,7 @@ export default function LeftTab({
 }: Props) {
     const [openGuId, setOpenGuId] = useState<string | null>(null);
 
-    /* ✅ API 기반 안전도 데이터 */
+    /* API 기반 안전도 데이터 */
     const [safetyByDong, setSafetyByDong] = useState<Record<string, {
         grade: string;
         danger: number;
@@ -44,31 +47,32 @@ export default function LeftTab({
 
     const [loading, setLoading] = useState(true);
 
-    /* ✅ 서울 전체 안전도 API 단 1회 호출 */
+    /* 서울 전체 안전도 API 단 1회 호출 */
     useEffect(() => {
         console.log("🔍 왼쪽 탭: API 호출 시작");
         setLoading(true);
 
-        fetch("/api/safety/seoul")
+        // ✅ 절대경로로 수정
+        fetch(`${API_BASE}/api/safety/seoul`)
             .then((r) => {
                 console.log("✅ 왼쪽 탭: 응답 받음", r.status);
                 return r.json();
             })
             .then((response) => {
-                console.log("📦 왼쪽 탭: 원본 응답", response);
+                console.log("✅ 왼쪽 탭: 원본 응답", response);
 
                 const data = response.data || [];
-                console.log("📊 왼쪽 탭: 데이터 배열", data);
-                console.log("📊 왼쪽 탭: 데이터 개수", data.length);
+                console.log("✅ 왼쪽 탭: 데이터 배열", data);
+                console.log("✅ 왼쪽 탭: 데이터 개수", data.length);
 
                 const map: any = {};
                 data.forEach((d: any) => {
                     console.log(`   - ${d.gu} ${d.dong}: ${d.grade}등급 (사고 ${d.accidentCount}건)`);
-                    map[d.dong] = d; // key: 역삼동 (법정동)
+                    map[d.dong] = d;
                 });
 
-                console.log("🗺️ 왼쪽 탭: 생성된 맵", map);
-                console.log("🗺️ 왼쪽 탭: 맵 키 목록", Object.keys(map));
+                console.log("✅ 왼쪽 탭: 생성된 맵", map);
+                console.log("✅ 왼쪽 탭: 맵 키 목록", Object.keys(map));
 
                 setSafetyByDong(map);
                 setLoading(false);
@@ -87,7 +91,7 @@ export default function LeftTab({
 
             {loading && (
                 <div style={{ color: "#8a95a8", fontSize: 12, padding: "0 12px" }}>
-                    🔄 안전도 데이터 로딩 중...
+                    ⏳ 안전도 데이터 로딩 중...
                 </div>
             )}
 
@@ -126,7 +130,7 @@ export default function LeftTab({
                                     {gu.dongs.map((dong) => {
                                         const dongActive = selectedDong?.id === dong.id;
 
-                                        // ✅ 행정동 → 법정동 변환
+                                        // 행정동 → 법정동 변환
                                         const normalizedDongName = normalizeDongName(dong.id);
 
                                         // ✅ API 데이터에서 찾기

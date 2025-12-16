@@ -10,6 +10,9 @@ import { DongInfo, GuInfo, GuWithDongs } from "../data/guDongData";
 
 /* ---------------- 기본 설정 ---------------- */
 
+// ✅ 환경변수 추가
+const API_BASE = process.env.REACT_APP_API_BASE || '';
+
 type Props = {
     selectedGuId: string | null;
     selectedDong: DongInfo | null;
@@ -95,6 +98,7 @@ export default function MapView({
     /* ---------------- GeoJSON 로드 ---------------- */
 
     useEffect(() => {
+        // ✅ 이건 static 파일이라 상대경로 그대로 OK
         fetch("/dong-polygons.json")
             .then((r) => r.json())
             .then(setDongGeoJson)
@@ -107,7 +111,8 @@ export default function MapView({
         console.log("🔍 서울 안전도 데이터 로딩 중...");
         setIsLoading(true);
 
-        fetch("/api/safety/seoul")
+        // ✅ 절대경로로 수정
+        fetch(`${API_BASE}/api/safety/seoul`)
             .then((r) => {
                 if (!r.ok) {
                     throw new Error(`HTTP ${r.status}`);
@@ -128,12 +133,12 @@ export default function MapView({
                     };
                 });
 
-                console.log(" 처리된 안전도 데이터:", map);
+                console.log("✅ 처리된 안전도 데이터:", map);
                 setSafetyByDong(map);
                 setIsLoading(false);
             })
             .catch((e) => {
-                console.error(" 서울 안전도 API 실패:", e);
+                console.error("❌ 서울 안전도 API 실패:", e);
                 setIsLoading(false);
             });
     }, []);
@@ -247,8 +252,6 @@ export default function MapView({
                     />
                 )}
             </MapContainer>
-
-
         </div>
     );
 }

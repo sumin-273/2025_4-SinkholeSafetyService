@@ -1,10 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { GuInfo, DongInfo } from "../data/guDongData";
 
+const API_BASE = process.env.REACT_APP_API_BASE || '';
+
 type Props = {
     gu: GuInfo | null;
     dong: DongInfo | null;
 };
+
+
 
 type AccidentItem = {
     sagoNo: number;
@@ -47,10 +51,10 @@ export default function InfoPanel({ gu, dong }: Props) {
     const [loading, setLoading] = useState(false);
     const [showGradeInfo, setShowGradeInfo] = useState(false);
 
-    /* ✅ 서울 전체 안전도 API 단 1회 호출 */
+    /*  서울 전체 안전도 API 단 1회 호출 */
     useEffect(() => {
         setLoading(true);
-        fetch("/api/safety/seoul")
+        fetch(`${API_BASE}/api/safety/seoul`)
             .then((r) => r.json())
             .then((response) => {
                 const data = response.data || [];
@@ -60,7 +64,7 @@ export default function InfoPanel({ gu, dong }: Props) {
             .finally(() => setLoading(false));
     }, []);
 
-    /* ✅ 선택된 동의 안전도 정보 */
+    /*  선택된 동의 안전도 정보 */
     const safety = useMemo(() => {
         if (!dong) return null;
         const key = normalizeDongName(dong.id);
@@ -111,7 +115,7 @@ export default function InfoPanel({ gu, dong }: Props) {
                             </div>
                         </div>
 
-                        {/* ✅ 개별 사고 목록 (D등급 → A등급 순) */}
+                        {/*  개별 사고 목록 (D등급 → A등급 순) */}
                         {safety.accidents && safety.accidents.length > 0 && (
                             <div style={{
                                 marginTop: 8,
@@ -126,7 +130,7 @@ export default function InfoPanel({ gu, dong }: Props) {
                                     color: "#cfd6e1",
                                     marginBottom: 8
                                 }}>
-                                    📋 사고 내역 (위험도 순)
+                                    사고 내역 (위험도 순)
                                 </div>
 
                                 <div style={{ display: "grid", gap: 8 }}>
@@ -188,7 +192,7 @@ export default function InfoPanel({ gu, dong }: Props) {
                     📊 등급 기준
                 </button>
 
-                {/* ✅ 등급 기준 + API 출처 */}
+                {/*  등급 기준 + API 출처 */}
                 {showGradeInfo && (
                     <div
                         style={{
@@ -208,7 +212,7 @@ export default function InfoPanel({ gu, dong }: Props) {
                         <div><b style={{ color: "#ffa94d" }}>C등급</b>: 보통 (폭 ≥ 1.5m 또는 깊이 ≥ 1.0m)</div>
                         <div><b style={{ color: "#ff4d4f" }}>D등급</b>: 위험 (폭 ≥ 3.0m 또는 깊이 ≥ 1.5m)</div>
 
-                        {/* ✅ API 출처 */}
+                        {/*  API 출처 */}
                         <div style={{
                             marginTop: 12,
                             paddingTop: 12,

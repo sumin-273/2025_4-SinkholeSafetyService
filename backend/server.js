@@ -12,7 +12,7 @@ import safetySeoul from "./routes/safety-seoul.js";
 
 dotenv.config();
 
-// 전역 에러 핸들러: 프로세스가 조용히 종료되는 원인을 로그에 남기기 위함
+// 전역 에러 핸들러
 process.on("uncaughtException", (err) => {
     console.error("UNCaughtException:", err && err.stack ? err.stack : err);
 });
@@ -30,10 +30,18 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// 미들웨어
-app.use(cors());
+// CORS 설정 - 프론트엔드 도메인 허용
+const allowedOrigins = [
+    "http://localhost:3000",  // 로컬 개발용
+    process.env.FRONTEND_URL   // Render 배포용 (환경변수에서 가져옴)
+].filter(Boolean);  // undefined 제거
 
-// 큰 본문 요청 처리 (기본값 ~100KB를 상향)
+app.use(cors({
+    origin: allowedOrigins,
+    credentials: true
+}));
+
+// 큰 본문 요청 처리
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ limit: "5mb", extended: true }));
 
@@ -54,12 +62,11 @@ app.get("/api/health", (req, res) => {
     res.json({ ok: true });
 });
 
-// 서버 실행 확인
+// 서버 실행
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-    console.log(`서버 실행 중: http://localhost:${PORT}`); // ✅ 괄호 추가!
+    console.log(`서버 실행 중: http://localhost:${PORT}`);
 });
 
-// 디버깅용: 만약 프로세스가 곧바로 종료된다면 이벤트루프를 유지해서
-// 원인을 조사할 수 있도록 간단한 타이머를 둡니다. 문제가 해결되면 제거하세요.
+// 디버깅용 keepalive
 const __debug_keepalive = setInterval(() => { }, 1000 * 60 * 60);

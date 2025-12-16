@@ -57,6 +57,7 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.production
 
 # System files
 .DS_Store
