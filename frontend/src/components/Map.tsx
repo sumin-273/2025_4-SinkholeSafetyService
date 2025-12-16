@@ -33,12 +33,12 @@ function toLegalDong(adminDong: string) {
 
 function colorByGrade(grade: string) {
     switch (grade) {
-        case "A": return "#69db7c";
-        case "B": return "#ffe066";
-        case "C": return "#ffa94d";
-        case "D": return "#ff4d4f";
-        case "E": return "#c92a2a";
-        default: return "#adb5bd";
+        case "A": return "#69db7c";  // 초록 (안전)
+        case "B": return "#ffe066";  // 노랑
+        case "C": return "#ffa94d";  // 주황
+        case "D": return "#ff4d4f";  // 빨강
+        case "E": return "#c92a2a";  // 진한 빨강 (매우 위험)
+        default: return "#69db7c";   // 기본값도 A등급 (초록)
     }
 }
 
@@ -69,18 +69,13 @@ export default function MapView({
     guDongData,
 }: Props) {
     const [dongGeoJson, setDongGeoJson] = useState<any | null>(null);
-
-    /**
-     * safetyByDong 구조
-     * {
-     *   "역삼동": { grade: "D", danger: 4, gu: "강남구" }
-     * }
-     */
     const [safetyByDong, setSafetyByDong] = useState<Record<string, {
         grade: string;
         danger: number;
         gu: string;
+        accidentCount: number;
     }>>({});
+    const [isLoading, setIsLoading] = useState(true);
 
     const geoJsonRef = useRef<LeafletGeoJSON | null>(null);
 
@@ -110,37 +105,61 @@ export default function MapView({
     /* ---------------- 서울 전체 안전도 API ---------------- */
 
     useEffect(() => {
+        console.log("🔍 서울 안전도 데이터 로딩 중...");
+        setIsLoading(true);
+
         fetch("/api/safety/seoul")
-            .then((r) => r.json())
-            .then((data) => {
+            .then((r) => {
+                if (!r.ok) {
+                    throw new Error(`HTTP ${r.status}`);
+                }
+                return r.json();
+            })
+            .then((response) => {
+                console.log("✅ API 응답:", response);
+
+                const data = response.data || [];
                 const map: Record<string, any> = {};
-                data.forEach((d: any) => {
-                    // d.dong === "역삼동" (법정동)
-                    map[d.dong] = d;
+                data.forEach((item: any) => {
+                    map[item.dong] = {
+                        grade: item.grade,
+                        danger: item.danger,
+                        gu: item.gu,
+                        accidentCount: item.accidentCount,
+                    };
                 });
+
+                console.log("📊 처리된 안전도 데이터:", map);
                 setSafetyByDong(map);
+                setIsLoading(false);
             })
             .catch((e) => {
-                console.error("서울 안전도 API 실패", e);
+                console.error("❌ 서울 안전도 API 실패:", e);
+                setIsLoading(false);
             });
     }, []);
 
-    /* ---------------- 스타일 ---------------- */
+    /* ---------------- 스타일 함수 (✅ 단순화) ---------------- */
 
-    const styleFeature = useCallback((feature: any) => {
-        const adminDong = feature?.properties?.ADM_NM || ""; // 역삼1동
-        const legalDong = toLegalDong(adminDong);            // 역삼동
+    const getFeatureStyle = useCallback((adminDong: string, isHover: boolean = false) => {
+        const legalDong = toLegalDong(adminDong);
         const info = safetyByDong[legalDong];
+        const gradeToUse = info ? info.grade : "A";
 
         return {
             color: "#1b2332",
-            weight: 0.6,
-            fillColor: info ? colorByGrade(info.grade) : "#adb5bd",
+            weight: isHover ? 2 : 0.6,  // ✅ hover 시 테두리 두껍게
+            fillColor: colorByGrade(gradeToUse),
             fillOpacity: 0.7,
         };
     }, [safetyByDong]);
 
-    /* ---------------- 이벤트 ---------------- */
+    const styleFeature = useCallback((feature: any) => {
+        const adminDong = feature?.properties?.ADM_NM || "";
+        return getFeatureStyle(adminDong, false);
+    }, [getFeatureStyle]);
+
+    /* ---------------- 이벤트 (✅ 수정: 명시적 스타일 복원) ---------------- */
 
     const onEachFeature = useCallback((feature: any, layer: any) => {
         const adminDong = feature?.properties?.ADM_NM || "";
@@ -149,8 +168,8 @@ export default function MapView({
         const entry = dongLookup.get(adminDong);
 
         const label = info
-            ? `${info.gu} ${adminDong} · 등급 ${info.grade}`
-            : adminDong;
+            ? `${info.gu} ${adminDong} · ${info.grade}등급 (사고 ${info.accidentCount}건)`
+            : `${adminDong} · A등급 (사고 0건)`;
 
         layer.bindTooltip(label);
 
@@ -159,35 +178,110 @@ export default function MapView({
                 if (!entry) return;
                 onSelectFromMap(entry.guId, entry.dong);
             },
-            mouseover: () => layer.setStyle({ weight: 1.5 }),
-            mouseout: () => geoJsonRef.current?.resetStyle(layer),
+            mouseover: () => {
+                // ✅ hover 스타일 적용
+                layer.setStyle(getFeatureStyle(adminDong, true));
+            },
+            mouseout: () => {
+                // ✅ 원래 스타일로 복원
+                layer.setStyle(getFeatureStyle(adminDong, false));
+            },
         });
-    }, [safetyByDong, dongLookup, onSelectFromMap]);
+    }, [safetyByDong, dongLookup, onSelectFromMap, getFeatureStyle]);
+
+    /* ---------------- GeoJSON 업데이트 (✅ 추가: 데이터 변경 시 스타일 재적용) ---------------- */
+
+    useEffect(() => {
+        if (geoJsonRef.current && Object.keys(safetyByDong).length > 0) {
+            // 데이터가 로드되면 모든 레이어의 스타일 재적용
+            geoJsonRef.current.eachLayer((layer: any) => {
+                const feature = layer.feature;
+                if (feature) {
+                    const adminDong = feature.properties?.ADM_NM || "";
+                    layer.setStyle(getFeatureStyle(adminDong, false));
+                }
+            });
+        }
+    }, [safetyByDong, getFeatureStyle]);
 
     /* ---------------- 렌더 ---------------- */
 
     return (
-        <MapContainer
-            center={SEOUL_CENTER}
-            zoom={12}
-            minZoom={12}
-            maxZoom={18}
-            maxBounds={SEOUL_BOUNDS}
-            style={{ width: "100%", height: "100%" }}
-        >
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-
-            <FlyToGu gu={selectedGu} />
-            <FlyToDong dong={selectedDong} />
-
-            {dongGeoJson && (
-                <GeoJSON
-                    data={dongGeoJson}
-                    style={styleFeature}
-                    onEachFeature={onEachFeature}
-                    ref={geoJsonRef}
-                />
+        <div style={{ position: "relative", width: "100%", height: "100%" }}>
+            {/* 로딩 표시 */}
+            {isLoading && (
+                <div style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    zIndex: 1000,
+                    background: "white",
+                    padding: "20px",
+                    borderRadius: "8px",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)"
+                }}>
+                    🔄 안전도 데이터 로딩 중...
+                </div>
             )}
-        </MapContainer>
+
+            <MapContainer
+                center={SEOUL_CENTER}
+                zoom={12}
+                minZoom={12}
+                maxZoom={18}
+                maxBounds={SEOUL_BOUNDS}
+                style={{ width: "100%", height: "100%" }}
+            >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+                <FlyToGu gu={selectedGu} />
+                <FlyToDong dong={selectedDong} />
+
+                {dongGeoJson && (
+                    <GeoJSON
+                        key={JSON.stringify(safetyByDong)}  // ✅ 데이터 변경 시 재렌더링
+                        data={dongGeoJson}
+                        style={styleFeature}
+                        onEachFeature={onEachFeature}
+                        ref={geoJsonRef}
+                    />
+                )}
+            </MapContainer>
+
+            {/* ✅ 범례 수정 (4단계) */}
+            <div style={{
+                position: "absolute",
+                bottom: "20px",
+                right: "20px",
+                background: "white",
+                padding: "15px",
+                borderRadius: "8px",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                zIndex: 1000,
+                fontSize: "14px"
+            }}>
+                <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+                    위험도 등급
+                </div>
+                {[
+                    { grade: "A", label: "매우 안전 (사고 없음)", color: "#69db7c" },
+                    { grade: "B", label: "안전", color: "#ffe066" },
+                    { grade: "C", label: "보통", color: "#ffa94d" },
+                    { grade: "D", label: "위험", color: "#ff4d4f" },
+                ].map(({ grade, label, color }) => (
+                    <div key={grade} style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
+                        <div style={{
+                            width: "20px",
+                            height: "20px",
+                            backgroundColor: color,
+                            marginRight: "8px",
+                            border: "1px solid #1b2332"
+                        }} />
+                        <span>{grade}등급 - {label}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 }

@@ -12,6 +12,12 @@ const xmlParser = new XMLParser({
     parseAttributeValue: true
 });
 
+// ✅ 캐시 저장소 (10분 유효)
+let cachedData = null;
+let cacheTimestamp = null;
+let isUpdating = false;
+const CACHE_DURATION = 10 * 60 * 1000; // 10분
+
 /* ---------------- 유틸 ---------------- */
 
 function formatDate(d) {
@@ -21,15 +27,21 @@ function formatDate(d) {
     return `${y}${m}${day}`;
 }
 
+// ✅ 새로운 등급 기준 (4단계)
 function calcGrade(width, depth) {
     const w = Number(width || 0);
     const d = Number(depth || 0);
 
-    if (d >= 1.5 || w >= 3.0) return { grade: "E", danger: 5 };
-    if (d >= 1.0 || w >= 1.5) return { grade: "D", danger: 4 };
-    if (d >= 0.7 || w >= 1.0) return { grade: "C", danger: 3 };
+    // D (4): depth ≥ 1.5 OR width ≥ 3.0
+    if (d >= 1.5 || w >= 3.0) return { grade: "D", danger: 4 };
+
+    // C (3): depth ≥ 1.0 OR width ≥ 1.5
+    if (d >= 1.0 || w >= 1.5) return { grade: "C", danger: 3 };
+
+    // B (2): depth ≥ 0.4 OR width ≥ 0.5
     if (d >= 0.4 || w >= 0.5) return { grade: "B", danger: 2 };
 
+    // A (1): depth < 0.4 AND width < 0.5
     return { grade: "A", danger: 1 };
 }
 
@@ -37,12 +49,18 @@ function worse(a, b) {
     return a.danger >= b.danger ? a : b;
 }
 
-/* ---------------- 메인 API ---------------- */
+/* ---------------- 데이터 수집 함수 ---------------- */
 
-router.get("/", async (req, res) => {
+async function fetchSeoulSafetyData() {
+    if (isUpdating) {
+        console.log("⏳ 이미 업데이트 중입니다. 스킵...");
+        return;
+    }
+
+    isUpdating = true;
+    console.log("\n🔄 서울 지반침하 안전도 조회 시작\n");
+
     try {
-        console.log("\n🔄 서울 지반침하 안전도 조회 시작\n");
-
         // ========================================
         // 1단계: 서울 사고번호 수집
         // ========================================
@@ -142,7 +160,6 @@ router.get("/", async (req, res) => {
                         console.log(`      ⏳ Rate Limit, 15초 대기 후 재시도...`);
                         await new Promise(resolve => setTimeout(resolve, 15000));
 
-                        // 재시도
                         const retry = await fetch(infoUrl);
                         if (!retry.ok) {
                             console.log(`      ❌ 재시도 실패: HTTP ${retry.status}`);
@@ -152,7 +169,6 @@ router.get("/", async (req, res) => {
 
                         const retryXml = await retry.text();
 
-                        // 첫 성공 시 디버깅
                         if (totalSuccess === 0) {
                             console.log(`      🔍 XML 응답 샘플:\n${retryXml.substring(0, 500)}\n`);
                         }
@@ -173,7 +189,6 @@ router.get("/", async (req, res) => {
 
                         const rd = Array.isArray(retryDetail) ? retryDetail[0] : retryDetail;
 
-                        // siGunGu, dong 확인
                         if (!rd || !rd.sigungu || !rd.dong) {
                             console.log(`      ⚠️  구/동 정보 없음`);
                             console.log(`      🔍 실제 키:`, Object.keys(rd || {}));
@@ -181,7 +196,6 @@ router.get("/", async (req, res) => {
                             continue;
                         }
 
-                        // ✅ siGunGu, dong, sinkWidth, sinkDepth 추출
                         const sigungu = rd.sigungu;
                         const dong = rd.dong;
                         const sinkWidth = rd.sinkWidth;
@@ -228,7 +242,6 @@ router.get("/", async (req, res) => {
 
                 const detailXml = await r.text();
 
-                // 첫 성공 시 디버깅
                 if (totalSuccess === 0) {
                     console.log(`      🔍 XML 응답 샘플:\n${detailXml.substring(0, 500)}\n`);
                 }
@@ -249,7 +262,6 @@ router.get("/", async (req, res) => {
 
                 const d = Array.isArray(detail) ? detail[0] : detail;
 
-                // siGunGu, dong 확인
                 if (!d || !d.sigungu || !d.dong) {
                     console.log(`      ⚠️  구/동 정보 없음`);
                     console.log(`      🔍 실제 키:`, Object.keys(d || {}));
@@ -257,7 +269,6 @@ router.get("/", async (req, res) => {
                     continue;
                 }
 
-                // ✅ siGunGu, dong, sinkWidth, sinkDepth 추출
                 const sigungu = d.sigungu;
                 const dong = d.dong;
                 const sinkWidth = d.sinkWidth;
@@ -290,7 +301,6 @@ router.get("/", async (req, res) => {
 
                 totalSuccess++;
 
-                // Rate Limit 방지 (각 요청 후 3초 대기)
                 if (i < allSeoulSagoNos.length - 1) {
                     await new Promise(resolve => setTimeout(resolve, 3000));
                 }
@@ -304,7 +314,7 @@ router.get("/", async (req, res) => {
         }
 
         // ========================================
-        // 결과 정리 및 반환
+        // 결과 정리 및 캐시 저장
         // ========================================
         const results = Object.values(allResults).sort((a, b) => {
             if (b.danger !== a.danger) return b.danger - a.danger;
@@ -323,24 +333,117 @@ router.get("/", async (req, res) => {
             });
         }
 
-        res.json({
+        // ✅ 캐시 저장
+        cachedData = {
             data: results,
             meta: {
                 period: "최근 5개월",
                 totalSeoulAccidents: allSeoulSagoNos.length,
                 successCount: totalSuccess,
                 failCount: totalFail,
-                distinctLocations: results.length
+                distinctLocations: results.length,
+                fetchedAt: new Date().toISOString(),
+                nextUpdate: new Date(Date.now() + CACHE_DURATION).toISOString()
+            }
+        };
+        cacheTimestamp = Date.now();
+
+        console.log(`\n💾 데이터 캐시 저장 완료 (10분 후 자동 갱신)\n`);
+
+    } catch (err) {
+        console.error("❌ 데이터 수집 에러:", err);
+    } finally {
+        isUpdating = false;
+    }
+}
+
+/* ---------------- 메인 API 엔드포인트 ---------------- */
+
+router.get("/", async (req, res) => {
+    try {
+        if (cachedData) {
+            const age = Math.floor((Date.now() - cacheTimestamp) / 1000);
+            console.log(`💾 캐시된 데이터 반환 (${age}초 전 갱신됨)`);
+
+            return res.json({
+                ...cachedData,
+                meta: {
+                    ...cachedData.meta,
+                    cacheAge: `${age}초 전`,
+                    isUpdating: isUpdating
+                }
+            });
+        }
+
+        console.log("⏳ 초기 데이터 수집 대기 중...");
+        res.json({
+            data: [],
+            meta: {
+                message: "데이터 수집 중입니다. 잠시 후 다시 시도해주세요.",
+                isUpdating: true
             }
         });
 
     } catch (err) {
-        console.error("❌ 에러:", err);
+        console.error("❌ API 에러:", err);
         res.status(500).json({
             error: "서울 지반침하 안전도 조회 실패",
             detail: err.message,
         });
     }
+});
+
+router.post("/refresh", async (req, res) => {
+    if (isUpdating) {
+        return res.status(429).json({
+            message: "이미 업데이트가 진행 중입니다."
+        });
+    }
+
+    fetchSeoulSafetyData().catch(console.error);
+
+    res.json({
+        message: "데이터 갱신을 시작했습니다.",
+        estimatedTime: "약 1-2분 소요"
+    });
+});
+
+router.get("/status", (req, res) => {
+    if (!cachedData) {
+        return res.json({
+            status: "no_cache",
+            message: "캐시된 데이터가 없습니다.",
+            isUpdating
+        });
+    }
+
+    const age = Math.floor((Date.now() - cacheTimestamp) / 1000);
+    const nextUpdate = Math.max(0, Math.ceil((CACHE_DURATION - (Date.now() - cacheTimestamp)) / 1000));
+
+    res.json({
+        status: "ok",
+        cacheAge: `${age}초`,
+        nextUpdateIn: `${nextUpdate}초`,
+        dataCount: cachedData.data.length,
+        isUpdating,
+        lastFetched: cachedData.meta.fetchedAt
+    });
+});
+
+/* ---------------- 서버 시작 시 자동 실행 + 10분마다 갱신 ---------------- */
+
+console.log("\n🚀 서버 시작: 초기 데이터 수집 시작...\n");
+fetchSeoulSafetyData().catch(console.error);
+
+const updateInterval = setInterval(() => {
+    console.log("\n⏰ 정기 갱신 시작 (10분 주기)\n");
+    fetchSeoulSafetyData().catch(console.error);
+}, CACHE_DURATION);
+
+process.on('SIGTERM', () => {
+    console.log('서버 종료 중...');
+    clearInterval(updateInterval);
+    process.exit(0);
 });
 
 export default router;
