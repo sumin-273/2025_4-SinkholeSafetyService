@@ -76,6 +76,7 @@ export default function MapView({
         accidentCount: number;
     }>>({});
     const [isLoading, setIsLoading] = useState(true);
+    const [recentIncidents, setRecentIncidents] = useState<any[] | null>(null);
 
     const geoJsonRef = useRef<LeafletGeoJSON | null>(null);
 
@@ -204,6 +205,55 @@ export default function MapView({
         }
     }, [safetyByDong, getFeatureStyle]);
 
+    /* ---------------- 선택된 동의 최근 사고(공지) 조회 ---------------- */
+    useEffect(() => {
+        async function loadIncidents() {
+            if (!selectedDong) {
+                setRecentIncidents(null);
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/api/safety?gu=${encodeURIComponent(selectedDong.gu)}&dong=${encodeURIComponent(selectedDong.id)}`);
+                if (!resp.ok) {
+                    setRecentIncidents(null);
+                    return;
+                }
+                const data = await resp.json();
+
+                // raw.sample may contain accident items with fields like sinkWidth/sinkDepth/addr/sagoDate
+                const items = (data?.raw?.sample && Array.isArray(data.raw.sample)) ? data.raw.sample : [];
+
+                // grade ordering helper (A=1 .. E=5)
+                const gradeVal = (g: any) => {
+                    if (!g) return 0;
+                    const m: Record<string, number> = { A: 1, B: 2, C: 3, D: 4, E: 5 };
+                    return m[String(g).toUpperCase()] ?? 0;
+                };
+
+                // sort: higher danger first (E -> A). If no grade, sort by sinkDepth desc then sinkWidth desc
+                items.sort((a: any, b: any) => {
+                    const ga = gradeVal(a?.grade);
+                    const gb = gradeVal(b?.grade);
+                    if (ga !== gb) return gb - ga; // higher danger first
+                    const da = Number(a?.sinkDepth || a?.depth || 0);
+                    const db = Number(b?.sinkDepth || b?.depth || 0);
+                    if (da !== db) return db - da;
+                    const wa = Number(a?.sinkWidth || a?.width || 0);
+                    const wb = Number(b?.sinkWidth || b?.width || 0);
+                    return wb - wa;
+                });
+
+                setRecentIncidents(items);
+            } catch (e) {
+                console.warn("최근 사고 조회 실패:", e);
+                setRecentIncidents(null);
+            }
+        }
+
+        loadIncidents();
+    }, [selectedDong]);
+
     /* ---------------- 렌더 ---------------- */
 
     return (
@@ -281,6 +331,53 @@ export default function MapView({
                         <span>{grade}등급 - {label}</span>
                     </div>
                 ))}
+            </div>
+
+            {/* 최근 공지(선택된 동)의 사고 정보 - 오른쪽 상단 */}
+            <div style={{
+                position: "absolute",
+                top: "20px",
+                right: "20px",
+                width: 320,
+                maxHeight: 280,
+                overflowY: "auto",
+                background: "white",
+                padding: "12px",
+                borderRadius: "8px",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                zIndex: 1000,
+                fontSize: 13
+            }}>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>최근 공지 · 사고</div>
+                {!selectedDong && (
+                    <div style={{ color: '#7a8696' }}>동을 선택하면 최근 사고 정보를 표시합니다.</div>
+                )}
+
+                {selectedDong && recentIncidents && recentIncidents.length === 0 && (
+                    <div style={{ color: '#7a8696' }}>최근 1년 내 등록된 사고 정보가 없습니다.</div>
+                )}
+
+                {selectedDong && recentIncidents && recentIncidents.length > 0 && (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                        {recentIncidents.map((it, i) => {
+                            const date = it?.sagoDate || it?.evaluateDate || it?.date || '';
+                            const width = it?.sinkWidth ?? it?.width ?? it?.폭 ?? '-';
+                            const depth = it?.sinkDepth ?? it?.depth ?? it?.깊이 ?? '-';
+                            const grade = it?.grade || it?.evaluateGrade || '-';
+                            return (
+                                <div key={i} style={{ padding: 8, borderRadius: 6, background: '#fbfcfd', border: '1px solid #eef2f6' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                        <div style={{ fontWeight: 700 }}>{date}</div>
+                                        <div style={{ color: '#556679', fontWeight: 700 }}>{grade}</div>
+                                    </div>
+                                    <div style={{ color: '#34414a' }}>
+                                        폭: <b>{width}</b> m · 깊이: <b>{depth}</b> m
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     );
