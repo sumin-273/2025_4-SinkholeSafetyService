@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { fetchSafetyScores } from "../api";
+import { fetchSafetyScores, fetchSafetyEvaluation } from "../api";
 import { GuInfo, DongInfo } from "../data/guDongData";
 
 type Props = {
@@ -16,6 +16,13 @@ type Notice = {
     source: string;
 };
 
+type SafetyData = {
+    score: number;
+    grade: string;
+    source: "evaluation" | "accident";
+    evaluateGrade?: string;
+};
+
 function getColor(level: number) {
     if (level >= 5) return "#ff0000";
     if (level === 4) return "#ff4d4f";
@@ -27,7 +34,7 @@ function getColor(level: number) {
 export default function InfoPanel({ gu, dong }: Props) {
     const [notices, setNotices] = useState<Notice[]>([]);
     const [loading, setLoading] = useState(false);
-    const [safety, setSafety] = useState<{ score: number; grade: string } | null>(null);
+    const [safety, setSafety] = useState<SafetyData | null>(null);
     const [showGradeInfo, setShowGradeInfo] = useState(false);
 
     // notices API 호출
@@ -57,8 +64,28 @@ export default function InfoPanel({ gu, dong }: Props) {
                 const guName = gu?.guName || "";
                 const dongName = dong?.id || "";
                 if (!guName || !dongName) { setSafety(null); return; }
-                const data = await fetchSafetyScores(guName, dongName);
-                setSafety({ score: Number(data.score) || 0, grade: String(data.grade || "-") });
+
+                // 먼저 평가 데이터 시도
+                try {
+                    const evalData = await fetchSafetyEvaluation(guName, dongName);
+                    setSafety({
+                        score: Number(evalData.score) || 0,
+                        grade: String(evalData.grade || "-"),
+                        source: "evaluation",
+                        evaluateGrade: String(evalData.evaluateGrade || ""),
+                    });
+                    return;
+                } catch (e) {
+                    console.warn("평가 데이터 조회 실패, 사고 데이터로 시도");
+                }
+
+                // 평가 데이터가 없으면 사고 데이터 사용
+                const accidentData = await fetchSafetyScores(guName, dongName);
+                setSafety({
+                    score: Number(accidentData.score) || 0,
+                    grade: String(accidentData.grade || "-"),
+                    source: "accident",
+                });
             } catch (e) {
                 setSafety(null);
             }
@@ -165,7 +192,18 @@ export default function InfoPanel({ gu, dong }: Props) {
                     위험도 <b>{dong.danger}단계</b>
                     {safety ? (
                         <div style={{ marginTop: 6, color: "#98a7b5" }}>
-                            실제 등급 <b>{safety.grade}</b> · 점수 <b>{safety.score}</b>
+                            {safety.source === "evaluation" ? (
+                                <>
+                                    <div>📋 [평가 데이터]</div>
+                                    <div>등급 <b>{safety.grade}</b> · 점수 <b>{safety.score}</b></div>
+                                    <div style={{ fontSize: 12, marginTop: 4 }}>평가등급: {safety.evaluateGrade}</div>
+                                </>
+                            ) : (
+                                <>
+                                    <div>📊 [사고 데이터]</div>
+                                    <div>등급 <b>{safety.grade}</b> · 점수 <b>{safety.score}</b></div>
+                                </>
+                            )}
                         </div>
                     ) : null}
                 </div>

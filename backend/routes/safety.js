@@ -5,332 +5,499 @@ import dotenv from "dotenv";
 dotenv.config();
 const router = Router();
 
-// MOLIT underground safety info (지하안전정보) API
+/**
+ * 국토교통부_지하안전정보 (data.go.kr 15041891)
+ * Base: https://apis.data.go.kr/1613000/undergroundsafetyinfo01
+ *
+ * 사용 엔드포인트:
+ *  - 지반침하사고 리스트: getSubsidenceList01   (가정: swagger에 존재)
+ *  - 지반침하사고 상세:   getSubsidenceInfo01   (sagoNo 필수)  <-- 너 스샷에 나온거
+ *  - 지반침하위험도평가 리스트: getSubsidenceEvalutionList01  <-- 새로 추가
+ *
+ * ⚠️ 참고:
+ * - 브라우저에서 직접 때리면 CORS/키 노출/403 등의 문제가 나서,
+ *   반드시 백엔드에서 프록시로 호출하는 형태가 맞음.
+ */
+
 const API_KEY = process.env.MOLIT_RISK_API_KEY;
-// 지반침하위험도평가 리스트 조회 (MOLITJIS-07)
-// 명세: getSubsidenceEvalutionList01
-const API_BASE_URL = "https://apis.data.go.kr/1613000/undergroundsafetyinfo01/getSubsidenceEvalutionList01";
 
-let _cache = {};
-let _cacheTime = {};
-const TTL_MS = 24 * 60 * 60 * 1000; // 24시간 캐시
+// 리스트/상세 URL
+const BASE = "https://apis.data.go.kr/1613000/undergroundsafetyinfo01";
+const LIST_URL = `${BASE}/getSubsidenceList01`;
+const INFO_URL = `${BASE}/getSubsidenceInfo01`;
+const EVALUTION_LIST_URL = `${BASE}/getSubsidenceEvalutionList01`;
 
-function normalize(str = "") {
-    return String(str).trim().toLowerCase();
+// 캐시
+const TTL_MS = 60 * 60 * 1000; // 1시간 (원하면 조절)
+const cache = new Map(); // key: "gu|dong" -> {time,data}
+const listCache = new Map(); // key: "from|to|pageNo|numOfRows" -> {time,items}
+
+/** ===== 너가 정한 점수/등급 기준 그대로 ===== */
+function scoreToGrade(score) {
+    if (score >= 80) return "A";
+    if (score >= 60) return "B";
+    if (score >= 40) return "C";
+    if (score >= 20) return "D";
+    return "E";
 }
-
-function pickGrade(item) {
-    const raw = (item.EVL_GRD || item.RSK_GRD || item.GRD || item.GRADE || item.EVL_GRAD || item.RISK_GRAD || "").toString().trim();
-    if (!raw) return "";
-    const g = raw[0].toUpperCase();
-    if (["A", "B", "C", "D", "E"].includes(g)) return g;
-    return "";
-}
-
-function pickScore(item) {
-    const candidate = [
-        item.EVL_SCR,
-        item.SCORE,
-        item.RSK_VAL,
-        item.TOT_SCORE,
-        item.EVL_SCORE,
-        item.POINT
-    ].find((v) => v !== undefined && v !== null && v !== "");
-    const num = Number(candidate);
-    return Number.isFinite(num) ? num : null;
-}
-
 function gradeToDanger(grade) {
     const map = { A: 1, B: 2, C: 3, D: 4, E: 5 };
-    return map[grade] ?? 3;
+    return map[String(grade || "").toUpperCase()] ?? 3;
+}
+function scoreToDanger(score) {
+    return gradeToDanger(scoreToGrade(score));
 }
 
-function scoreToDanger(score) {
-    if (!Number.isFinite(score)) return 3;
-    // API 기준: 점수 높을수록 안전함 (국토교통부 표준)
-    if (score >= 80) return 1; // A등급 - 매우 안전
-    if (score >= 60) return 2; // B등급 - 안전
-    if (score >= 40) return 3; // C등급 - 보통
-    if (score >= 20) return 4; // D등급 - 위험
-    return 5; // E등급 - 매우 위험
+/** 유틸 */
+function normalize(s = "") {
+    return String(s).trim().toLowerCase();
+}
+function parseDateYYYYMMDD(s) {
+    // "20240101" 또는 "2024-01-01" 같이 들어올 수 있어서 최대한 처리
+    const raw = String(s || "").trim();
+    if (!raw) return null;
+    if (/^\d{8}$/.test(raw)) {
+        const y = raw.slice(0, 4);
+        const m = raw.slice(4, 6);
+        const d = raw.slice(6, 8);
+        return new Date(`${y}-${m}-${d}T00:00:00`);
+    }
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+}
+function daysDiff(from, to) {
+    const ms = to.getTime() - from.getTime();
+    return Math.max(1, Math.floor(ms / (1000 * 60 * 60 * 24)));
 }
 
 /**
- * 지반침하 사고 데이터를 이용한 프록시 위험도 계산
- * Notices 라우트를 통해 서울 사고 목록을 가져와 구/동 키워드로 필터링 후
- * 최근성(+가중치), 건수 기반 점수 산출
+ * 시간가중치(너가 준 표 그대로)
  */
-async function fetchAccidentProxy(gu, dong) {
-    const baseUrl = process.env.PUBLIC_BACKEND_URL || "http://localhost:3001";
-    // 동 매칭이 희박할 수 있어 구 중심 + 서울 키워드로 확대
-    const keywords = `${gu},서울,지반침하,싱크홀,사고`;
-    const url = `${baseUrl}/api/notices?keywords=${encodeURIComponent(keywords)}&limit=100`;
-    const resp = await fetch(url, { timeout: 10000 });
-    if (!resp.ok) throw new Error(`Notices 응답 오류: ${resp.status}`);
-    const notices = await resp.json();
-    if (!Array.isArray(notices) || notices.length === 0) return null;
-
-    // 구/동 필터링: 제목/설명/위치에 구, 동 포함 여부로 가중치
-    const nGu = normalize(gu);
-    const nDong = normalize(dong);
-    const scored = notices.map((n) => {
-        const text = `${n.title || ""} ${n.description || ""} ${n.location || ""}`.toLowerCase();
-        const hitGu = text.includes(nGu) ? 1 : 0;
-        const hitDong = text.includes(nDong) ? 1 : 0;
-        return { n, hitGu, hitDong };
-    });
-    const filteredNotices = scored.filter(s => s.hitGu || s.hitDong).map(s => s.n);
-    const targetNotices = filteredNotices.length ? filteredNotices : notices;
-
-    // 점수 계산: 최근일수 역가중 + 건수
-    const today = new Date();
-    let scoreAcc = 0;
-    let recentCount = 0; // 최근 1년 내 사고 수
-
-    for (const n of targetNotices) {
-        const d = new Date(n.date);
-        const days = Math.max(1, Math.floor((today - d) / (1000 * 60 * 60 * 24)));
-
-        // 최근 1년 사고는 카운트
-        if (days <= 365) recentCount++;
-
-        // 가중치: 최근일수록 높은 점수 (더 민감하게 조정)
-        let baseW = 0;
-        if (days <= 30) baseW = 30;        // 1개월 이내: 30점
-        else if (days <= 90) baseW = 25;   // 3개월 이내: 25점
-        else if (days <= 180) baseW = 20;  // 6개월 이내: 20점
-        else if (days <= 365) baseW = 15;  // 1년 이내: 15점
-        else if (days <= 730) baseW = 10;  // 2년 이내: 10점
-        else baseW = 5;                     // 2년 이상: 5점
-
-        const locBoost = (n.location && n.location.includes(gu)) ? 1.5 : 1.0;
-        scoreAcc += baseW * locBoost;
-    }
-
-    // 건수 보너스: 사고가 많을수록 추가 점수 (더 강하게)
-    const countBonus = Math.min(40, targetNotices.length * 3);
-    scoreAcc += countBonus;
-
-    // 위험도 점수 계산 (사고 많을수록 높음)
-    const riskScore = Math.max(0, Math.min(100, Math.round(scoreAcc)));
-
-    // 점수를 더 다양하게 분포시키기 위해 비선형 변환
-    // 적은 사고도 점수에 더 큰 영향을 주도록 조정
-    let proxyScore;
-    if (riskScore <= 20) {
-        proxyScore = 100 - riskScore * 2; // 0~20 → 100~60
-    } else if (riskScore <= 40) {
-        proxyScore = 60 - (riskScore - 20) * 1.5; // 20~40 → 60~30
-    } else {
-        proxyScore = 30 - (riskScore - 40) * 0.5; // 40~100 → 30~0
-    }
-    proxyScore = Math.max(0, Math.min(100, Math.round(proxyScore)));
-
-    const danger = scoreToDanger(proxyScore);
-    // 등급 계산: API 기준 (점수 높을수록 안전)
-    let proxyGrade = 'E';
-    if (proxyScore >= 80) proxyGrade = 'A';
-    else if (proxyScore >= 60) proxyGrade = 'B';
-    else if (proxyScore >= 40) proxyGrade = 'C';
-    else if (proxyScore >= 20) proxyGrade = 'D';
-
-    return {
-        location: { gu, dong },
-        score: proxyScore,
-        grade: proxyGrade,
-        danger,
-        description: "사고 데이터 기반 위험도(프록시)",
-        basis: {
-            window: "accidents-1y",
-            fields_used: { notices: true },
-            updated_at: new Date().toISOString(),
-            data_source: "proxy:notices",
-        },
-        raw: { count: notices.length },
-    };
+function timeWeightByDays(days) {
+    if (days <= 30) return 30;
+    if (days <= 90) return 25;
+    if (days <= 180) return 20;
+    if (days <= 365) return 15;
+    if (days <= 730) return 10;
+    return 5;
 }
 
-function matchesLocation(item, gu, dong) {
-    const nGu = normalize(gu);
-    const nDong = normalize(dong);
+/**
+ * 공공데이터포털 serviceKey:
+ * - "디코딩 인증키"를 .env에 넣었다면 여기서 URLSearchParams로 또 인코딩해버리면 꼬일 수 있음
+ * - 그래서 serviceKey는 "그대로" 붙이고, 나머지만 인코딩
+ */
+function buildUrl(baseUrl, paramsObj = {}) {
+    if (!API_KEY) throw new Error("MOLIT_RISK_API_KEY가 설정되지 않았습니다 (.env 확인)");
 
-    const guFields = [item.SGG_NM, item.SIGUNGU_NM, item.SIGUNGU, item.GU_NM];
-    const dongFields = [item.EMD_NM, item.DONG_NM, item.DONG, item.EUPMYEON_DONG, item.HJD_NAM];
-
-    const hasGu = guFields.some((f) => normalize(f).includes(nGu));
-    const hasDong = dongFields.some((f) => normalize(f).includes(nDong));
-
-    if (hasGu && hasDong) return true;
-
-    // fallback: EVL_NM에 모두 포함되는지 검사
-    const evl = normalize(item.EVL_NM);
-    return evl.includes(nGu) && evl.includes(nDong);
+    const qs = new URLSearchParams(paramsObj).toString();
+    // serviceKey는 raw로 붙임
+    return `${baseUrl}?serviceKey=${API_KEY}${qs ? `&${qs}` : ""}`;
 }
 
-async function fetchFromAPI(gu, dong) {
-    if (!API_KEY) {
-        throw new Error("MOLIT_RISK_API_KEY가 설정되지 않았습니다");
-    }
-
-    const cacheKey = `${gu}-${dong}`;
+/**
+ * 리스트 1페이지 가져오기
+ * - swagger마다 파라미터 이름이 다를 수 있어서, 우선 가장 흔한(pageNo/numOfRows/returnType)만 씀
+ * - 날짜필터는 프로젝트에서 원하는 기간으로 넣고 싶으면 from/to를 붙여줄 수 있게 구성
+ */
+async function fetchSubsidenceListPage({ pageNo = 1, numOfRows = 1000, from = null, to = null }) {
+    const cacheKey = `${from || ""}|${to || ""}|${pageNo}|${numOfRows}`;
     const now = Date.now();
+    const hit = listCache.get(cacheKey);
+    if (hit && now - hit.time < TTL_MS) return hit.items;
 
-    if (_cache[cacheKey] && now - _cacheTime[cacheKey] < TTL_MS) {
-        console.log(`캐시에서 반환: ${cacheKey}`);
-        return _cache[cacheKey];
-    }
-
-    // serviceKey는 인코딩하지 않고 그대로 사용 (공공데이터포털 표준)
-    // 필수 파라미터(pageNo, numOfRows, returnType) 포함
-    const params = new URLSearchParams({
-        serviceKey: API_KEY,
-        pageNo: "1",
-        numOfRows: "100",
-        returnType: "json"
-    });
-    let url = `${API_BASE_URL}?${params.toString()}`;
-    console.log(`MOLIT 호출: ${url.substring(0, 100)}...`);
-
-    let response = await fetch(url, {
-        timeout: 10000,
-        headers: {
-            // 일부 공공 API가 User-Agent/Accept를 요구할 수 있음
-            "Accept": "application/json",
-            "User-Agent": "SinkholeSafetyService/1.0 (+http://localhost:3001)"
-        }
-    });
-
-    if (!response.ok) {
-        console.warn(`MOLIT API 오류: ${response.status}`);
-        const errorText = await response.text();
-        console.warn(`응답 내용: ${errorText.substring(0, 200)}`);
-        // 403인 경우 즉시 사고 프록시로 대체 시도
-        if (response.status === 403) {
-            try {
-                const proxy = await fetchAccidentProxy(String(gu), String(dong));
-                if (proxy) {
-                    _cache[cacheKey] = proxy;
-                    _cacheTime[cacheKey] = now;
-                    return proxy;
-                }
-            } catch (e) {
-                console.warn("403 프록시 대체 실패:", e.message);
-            }
-        }
-        throw new Error(`API 응답 오류: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const items = data?.response?.body?.items?.item
-        || data?.response?.body?.items
-        || data?.body
-        || [];
-
-    if (!Array.isArray(items)) {
-        throw new Error("API 응답 형식이 예상과 다릅니다");
-    }
-
-    console.log(`[MOLIT] 총 아이템 수: ${Array.isArray(items) ? items.length : 0}`);
-    const filtered = items.filter((item) => matchesLocation(item, gu, dong));
-    console.log(`[MOLIT] 필터 결과 수(${gu}/${dong}): ${filtered.length}`);
-    const item = filtered[0];
-
-    // 목록에서 해당 구/동 매칭이 없으면 사고 프록시로 대체
-    if (!item) {
-        try {
-            const proxy = await fetchAccidentProxy(String(gu), String(dong));
-            if (proxy) {
-                _cache[cacheKey] = proxy;
-                _cacheTime[cacheKey] = now;
-                return proxy;
-            }
-        } catch (e) {
-            console.warn("목록 비어 프록시 실패:", e.message);
-        }
-    }
-
-    const grade = item ? pickGrade(item) : "";
-    const score = item ? pickScore(item) : null;
-    const danger = grade ? gradeToDanger(grade) : scoreToDanger(score);
-
-    const result = {
-        location: { gu, dong },
-        score: score ?? 50,
-        grade: grade || "UNKNOWN",
-        danger,
-        description: item?.EVL_NM || "지반침하 위험도",
-        basis: {
-            window: "latest",
-            fields_used: {
-                grade_field: grade ? "EVL_GRD|RSK_GRD|GRD" : null,
-                score_field: score !== null ? "EVL_SCR|SCORE|RSK_VAL" : null,
-            },
-            updated_at: new Date().toISOString(),
-            data_source: "MOLIT underground safety info (getSubsidenceEvalutionList01)",
-        },
-        raw: item || null,
+    // ✅ 날짜 파라미터는 getSubsidenceList01 API 스펙에 맞춤
+    // sagodateFrom/sagodateTo: 사고일시 기준
+    const params = {
+        pageNo: String(pageNo),
+        numOfRows: String(numOfRows),
+        returnType: "json",
     };
 
-    _cache[cacheKey] = result;
-    _cacheTime[cacheKey] = now;
-    return result;
+    // 아래 2줄은 "만약 지원하면" 들어가도록 해둔 것
+    // 공공데이터 API는 파라미터 네이밍이 camelCase인 경우가 있으므로
+    // sagoDateFrom / sagoDateTo 형식으로 전달합니다.
+    if (from) params.sagoDateFrom = String(from);
+    if (to) params.sagoDateTo = String(to);
+
+    const url = buildUrl(LIST_URL, params);
+
+    const resp = await fetch(url, {
+        headers: { Accept: "application/json" },
+    });
+
+    // 403/401이면 프론트에서 바로 쓸 수 있게 깔끔한 오류로 내려보냄
+    if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(`MOLIT LIST API 오류(${resp.status}): ${txt.slice(0, 200)}`);
+    }
+
+    const data = await resp.json();
+    const items =
+        data?.response?.body?.items?.item ||
+        data?.response?.body?.items ||
+        data?.body?.items?.item ||
+        data?.body?.items ||
+        [];
+
+    const arr = Array.isArray(items) ? items : [items].filter(Boolean);
+    listCache.set(cacheKey, { time: now, items: arr });
+    return arr;
 }
 
+/**
+ * 상세 1건 조회 (sagoNo 필수)  <-- 너가 올린 스샷 엔드포인트
+ */
+async function fetchSubsidenceInfo(sagoNo) {
+    const url = buildUrl(INFO_URL, {
+        sagoNo: String(sagoNo),
+        returnType: "json",
+    });
+
+    const resp = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(`MOLIT INFO API 오류(${resp.status}): ${txt.slice(0, 200)}`);
+    }
+    const data = await resp.json();
+
+    // swagger마다 item 위치가 조금씩 달라서 다 열어둠
+    const item =
+        data?.response?.body?.items?.item ||
+        data?.response?.body?.item ||
+        data?.response?.body ||
+        data?.body?.items?.item ||
+        data?.body?.item ||
+        data?.body ||
+        null;
+
+    return item;
+}
+
+/**
+ * 서울 + (구/동) 매칭
+ * - API 필드: siDo / siGunGu / dong (스샷 기준)
+ */
+function isMatchSeoulGuDong(item, gu, dong) {
+    const siDo = normalize(item?.siDo);
+    if (siDo && !siDo.includes("서울")) return false;
+
+    const apiGu = normalize(item?.siGunGu);
+    const apiDong = normalize(item?.dong);
+
+    const targetGu = normalize(gu);
+    const targetDong = normalize(dong);
+
+    // 정확 매칭 우선
+    if (apiGu.includes(targetGu) && apiDong.includes(targetDong)) return true;
+
+    // addr에 들어있는 경우도 있어서 보조로 확인
+    const addr = normalize(item?.addr);
+    if (addr.includes(targetGu) && addr.includes(targetDong)) return true;
+
+    return false;
+}
+
+/**
+ * ✅ 너가 설계한 로직 그대로
+ * - 입력: 사고 목록(각 항목에 sagoDate, addr, siGunGu, dong 등이 있다고 가정)
+ * - 출력: score/grade/danger
+ */
+function computeSafetyFromAccidents(accidents, gu, dong) {
+    const today = new Date();
+
+    let sumRisk = 0;
+
+    for (const a of accidents) {
+        const d = parseDateYYYYMMDD(a?.sagoDate);
+        if (!d) continue;
+
+        const days = daysDiff(d, today);
+        const baseW = timeWeightByDays(days);
+
+        const locBoost = (a?.siGunGu && String(a.siGunGu).includes(gu)) || (a?.addr && String(a.addr).includes(gu))
+            ? 1.5
+            : 1.0;
+
+        sumRisk += baseW * locBoost;
+    }
+
+    const countBonus = Math.min(40, accidents.length * 3);
+    sumRisk += countBonus;
+
+    const riskScore = Math.max(0, Math.min(100, Math.round(sumRisk)));
+
+    let safetyScore;
+    if (riskScore <= 20) safetyScore = 100 - riskScore * 2;
+    else if (riskScore <= 40) safetyScore = 60 - (riskScore - 20) * 1.5;
+    else safetyScore = 30 - (riskScore - 40) * 0.5;
+
+    safetyScore = Math.max(0, Math.min(100, Math.round(safetyScore)));
+
+    const grade = scoreToGrade(safetyScore);
+    const danger = gradeToDanger(grade);
+
+    return { score: safetyScore, grade, danger, riskScore, count: accidents.length };
+}
+
+/**
+ * /api/safety?gu=강남구&dong=역삼동
+ * - 1) (가능하면) MOLIT 지반침하사고 리스트를 가져온다
+ * - 2) 리스트에 구/동/서울 매칭이 부족하면, sagoNo로 상세를 추가 조회해서 보강한다
+ * - 3) 너 로직대로 score/grade/danger 계산해서 반환한다
+ */
 router.get("/", async (req, res) => {
     try {
-        const { gu, dong } = req.query;
-
+        const gu = String(req.query.gu || "").trim();
+        const dong = String(req.query.dong || "").trim();
         if (!gu || !dong) {
             return res.status(400).json({
-                error: {
-                    code: "BAD_REQUEST",
-                    message: "구(gu)와 동(dong) 파라미터는 필수입니다",
-                    example: "/api/safety?gu=강남구&dong=역삼동",
-                },
+                error: { code: "BAD_REQUEST", message: "gu, dong은 필수", example: "/api/safety?gu=강남구&dong=역삼동" },
             });
         }
 
-        let result = await fetchFromAPI(gu, dong);
+        const key = `${gu}|${dong}`;
+        const now = Date.now();
+        const cached = cache.get(key);
+        if (cached && now - cached.time < TTL_MS) return res.json(cached.data);
 
-        // 데이터가 없으면 사고 기반 프록시로 보강
-        if (!result || (result.grade === "UNKNOWN" && result.score === 50)) {
-            try {
-                const proxy = await fetchAccidentProxy(String(gu), String(dong));
-                if (proxy) {
-                    result = proxy;
-                }
-            } catch (e) {
-                console.warn("Accident proxy 실패:", e.message);
+        // 1) 우선 리스트에서 최대한 가져오기
+        //    너무 무겁게 전체 다 가져오면 느려지니까 페이지를 제한적으로 순회
+        let from = req.query.from ? String(req.query.from) : null;
+        let to = req.query.to ? String(req.query.to) : null;
+
+        // 기본값: 최근 1년 데이터 (from/to가 없으면 자동 설정)
+        if (!from || !to) {
+            const todayDate = new Date();
+            const oneYearAgoDate = new Date(todayDate);
+            oneYearAgoDate.setFullYear(todayDate.getFullYear() - 1);
+
+            // YYYYMMDD 형식으로 변환
+            to = to || `${todayDate.getFullYear()}${String(todayDate.getMonth() + 1).padStart(2, '0')}${String(todayDate.getDate()).padStart(2, '0')}`;
+            from = from || `${oneYearAgoDate.getFullYear()}${String(oneYearAgoDate.getMonth() + 1).padStart(2, '0')}${String(oneYearAgoDate.getDate()).padStart(2, '0')}`;
+        }
+
+        const collected = [];
+        const MAX_PAGES = 5;      // 필요하면 늘려
+        const NUM = 1000;         // 페이지당
+
+        for (let p = 1; p <= MAX_PAGES; p++) {
+            const pageItems = await fetchSubsidenceListPage({ pageNo: p, numOfRows: NUM, from, to });
+            if (!pageItems.length) break;
+
+            // 리스트 항목 구조가 제각각일 수 있어 sagoNo만 뽑아두고,
+            // 구/동 필드는 있으면 바로 매칭하고, 없으면 상세 조회에서 채움
+            for (const it of pageItems) {
+                // 리스트에 이미 siDo/siGunGu/dong/sagoDate가 있으면 바로 사용
+                if (isMatchSeoulGuDong(it, gu, dong)) collected.push(it);
             }
         }
-        res.json(result);
-    } catch (error) {
-        console.error("Safety API 오류:", error);
-        // 오류 시에도 사고 프록시 우선 시도
-        try {
-            const gu = String(req.query.gu || "");
-            const dong = String(req.query.dong || "");
-            const proxy = await fetchAccidentProxy(gu, dong);
-            if (proxy) {
-                return res.json(proxy);
+
+        // 2) 리스트에서 매칭이 거의 안 되면(필드가 부족한 케이스),
+        //    "전체 리스트의 sagoNo"를 일부 뽑아서 상세로 보강
+        //    (너무 많이 하면 폭발하니까 상한 둠)
+        if (collected.length === 0) {
+            const page1 = await fetchSubsidenceListPage({ pageNo: 1, numOfRows: 200, from, to });
+
+            const sagoNos = page1
+                .map((x) => x?.sagoNo)
+                .filter(Boolean)
+                .slice(0, 80); // 상한
+
+            const infos = await Promise.allSettled(sagoNos.map((no) => fetchSubsidenceInfo(no)));
+
+            for (const r of infos) {
+                if (r.status !== "fulfilled") continue;
+                const info = r.value;
+                if (info && isMatchSeoulGuDong(info, gu, dong)) collected.push(info);
             }
-        } catch (e) {
-            console.warn("오류 처리 중 Accident proxy 실패:", e.message);
         }
-        // 프록시도 실패하면 Fallback 반환
-        res.json({
-            location: { gu: String(req.query.gu || ""), dong: String(req.query.dong || "") },
-            score: 50,
-            grade: "UNKNOWN",
-            danger: 3,
-            description: "위험도 데이터 없음(서비스 일시 오류)",
+
+        // 3) 점수/등급 계산
+        const calc = computeSafetyFromAccidents(collected, gu, dong);
+
+        const result = {
+            location: { gu, dong },
+            score: calc.score,
+            grade: calc.grade,
+            danger: calc.danger,
+
+            description: "지반침하사고(국토교통부_지하안전정보) 기반 안전도(프록시)",
             basis: {
-                window: "latest",
-                fields_used: null,
+                api: "MOLIT undergroundsafetyinfo01",
+                endpoints: ["getSubsidenceList01", "getSubsidenceInfo01"],
+                cache_ttl_ms: TTL_MS,
+                used_accident_count: calc.count,
+                riskScore: calc.riskScore,
                 updated_at: new Date().toISOString(),
-                data_source: "fallback",
             },
-            raw: null,
+
+            // 필요하면 디버깅용으로만 사용 (프론트에 너무 무겁게 보내기 싫으면 삭제)
+            raw: {
+                sample: collected.slice(0, 5),
+            },
+        };
+
+        cache.set(key, { time: now, data: result });
+        return res.json(result);
+    } catch (err) {
+        console.error("safety.js error:", err?.message || err);
+        // Upstream API or processing error — return 502 with details so frontend can show an error
+        return res.status(502).json({
+            error: "UPSTREAM_API_ERROR",
+            message: String(err?.message || err),
+            location: { gu: String(req.query.gu || ""), dong: String(req.query.dong || "") },
+        });
+    }
+});
+
+/**
+ * 지반침하위험도평가 리스트 조회
+ * /api/safety-evalution?gu=강남구&dong=역삼동
+ *
+ * API Response 필드 (예상):
+ * - evaluateGrade: 평가등급 (안전/주의/위험 등)
+ * - evaluateResult: 평가결과
+ * - siDo, siGunGu, dong: 위치정보
+ * - evaluateDate: 평가일자
+ */
+
+const evaluationCache = new Map();
+
+async function fetchSubsidenceEvalutionList({ pageNo = 1, numOfRows = 1000, siGunGu = null, dong = null }) {
+    const cacheKey = `${siGunGu || ""}|${dong || ""}|${pageNo}|${numOfRows}`;
+    const now = Date.now();
+    const hit = evaluationCache.get(cacheKey);
+    if (hit && now - hit.time < TTL_MS) return hit.items;
+
+    const params = {
+        pageNo: String(pageNo),
+        numOfRows: String(numOfRows),
+        returnType: "json",
+    };
+
+    // siGunGu, dong 파라미터 (API에서 지원하면)
+    if (siGunGu) params.siGunGu = String(siGunGu);
+    if (dong) params.dong = String(dong);
+
+    const url = buildUrl(EVALUTION_LIST_URL, params);
+
+    const resp = await fetch(url, {
+        headers: { Accept: "application/json" },
+    });
+
+    if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(`MOLIT EVALUTION API 오류(${resp.status}): ${txt.slice(0, 200)}`);
+    }
+
+    const data = await resp.json();
+    const items =
+        data?.response?.body?.items?.item ||
+        data?.response?.body?.items ||
+        data?.body?.items?.item ||
+        data?.body?.items ||
+        [];
+
+    const arr = Array.isArray(items) ? items : [items].filter(Boolean);
+    evaluationCache.set(cacheKey, { time: now, items: arr });
+    return arr;
+}
+
+/**
+ * 평가 등급을 안전 점수(0-100)로 변환
+ * evaluateGrade: 안전 -> 90, 주의 -> 60, 위험 -> 30, 기타 -> 50
+ */
+function evaluateGradeToScore(grade) {
+    const g = String(grade || "").toLowerCase().trim();
+    if (g.includes("안전")) return 90;
+    if (g.includes("주의")) return 60;
+    if (g.includes("위험")) return 30;
+    // 영문 매핑
+    if (g === "safe" || g === "ok") return 90;
+    if (g === "caution" || g === "warning") return 60;
+    if (g === "danger" || g === "hazard") return 30;
+    return 50;
+}
+
+/**
+ * /api/safety-evalution?gu=강남구&dong=역삼동
+ * - 지반침하위험도평가 API에서 평가 등급을 가져옴
+ * - 평가 등급을 점수/등급으로 변환해서 반환
+ */
+router.get("/evalution", async (req, res) => {
+    try {
+        const gu = String(req.query.gu || "").trim();
+        const dong = String(req.query.dong || "").trim();
+
+        if (!gu || !dong) {
+            return res.status(400).json({
+                error: { code: "BAD_REQUEST", message: "gu, dong은 필수", example: "/api/safety-evalution?gu=강남구&dong=역삼동" },
+            });
+        }
+
+        // 평가 리스트 조회
+        const evalutionItems = await fetchSubsidenceEvalutionList({
+            pageNo: 1,
+            numOfRows: 100,
+            siGunGu: gu,
+            dong: dong,
+        });
+
+        // 매칭된 평가 찾기
+        const matchedItems = evalutionItems.filter((item) => {
+            const apiGu = normalize(item?.siGunGu);
+            const apiDong = normalize(item?.dong);
+            const targetGu = normalize(gu);
+            const targetDong = normalize(dong);
+
+            return apiGu.includes(targetGu) && apiDong.includes(targetDong);
+        });
+
+        // 가장 최근 평가 선택 (evaluateDate 기준)
+        let selectedEval = matchedItems[0] || null;
+        if (matchedItems.length > 1) {
+            selectedEval = matchedItems.sort((a, b) => {
+                const dateA = parseDateYYYYMMDD(a?.evaluateDate) || new Date(0);
+                const dateB = parseDateYYYYMMDD(b?.evaluateDate) || new Date(0);
+                return dateB.getTime() - dateA.getTime();
+            })[0];
+        }
+
+        // 평가 등급을 점수로 변환
+        const evaluateGrade = selectedEval?.evaluateGrade || null;
+        const score = evaluateGradeToScore(evaluateGrade);
+        const grade = scoreToGrade(score);
+        const danger = gradeToDanger(grade);
+
+        const result = {
+            location: { gu, dong },
+            score,
+            grade,
+            danger,
+            evaluateGrade,
+            description: "지반침하위험도평가(국토교통부_지하안전정보) 기반 안전도",
+            basis: {
+                api: "MOLIT undergroundsafetyinfo01",
+                endpoint: "getSubsidenceEvalutionList01",
+                cache_ttl_ms: TTL_MS,
+                matched_count: matchedItems.length,
+                evaluateDate: selectedEval?.evaluateDate || null,
+                updated_at: new Date().toISOString(),
+            },
+            raw: {
+                selected: selectedEval || null,
+                samples: matchedItems.slice(0, 5),
+            },
+        };
+
+        return res.json(result);
+    } catch (err) {
+        console.error("safety-evalution error:", err?.message || err);
+        return res.status(502).json({
+            error: "UPSTREAM_API_ERROR",
+            message: String(err?.message || err),
+            location: { gu: String(req.query.gu || ""), dong: String(req.query.dong || "") },
         });
     }
 });

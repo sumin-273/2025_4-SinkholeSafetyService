@@ -28,13 +28,12 @@ router.post("/", async (req, res) => {
                 return { gu, dong, ...data };
             } catch (error) {
                 console.warn(`${gu}/${dong} 오류:`, error.message);
+                // 임시(fallback) 데이터를 반환하지 않도록 변경
+                // 오류가 발생하면 에러 정보만 반환해서 호출자(프론트)가 구분하도록 함
                 return {
                     gu,
                     dong,
-                    score: 50,
-                    grade: "C",
-                    danger: 3,
-                    error: error.message
+                    error: String(error?.message || error)
                 };
             }
         });
