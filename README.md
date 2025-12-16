@@ -6,8 +6,8 @@
 사용자는 지도를 통해 서울 전역의 구·동 단위 안전 등급을 한눈에 확인할 수 있으며, 특정 지역을 검색하거나 선택하면 해당 지역의 위험도와 최근 사고 정보를 확인할 수 있다.
 본 프로젝트는 시민들이 일상 속에서 지반 안전 정보를 쉽게 인지하고, 싱크홀 사고 예방에 도움을 주는 것을 목표로 한다.
 
-<img width="1892" height="902" alt="ui2" src="https://github.com/user-attachments/assets/9bcb46d3-ed31-4a94-8540-fcf88bc7c529" />
 <img width="1895" height="902" alt="ui1" src="https://github.com/user-attachments/assets/20089e72-0263-470a-98cf-38aaf284082d" />
+<img width="1892" height="902" alt="ui2" src="https://github.com/user-attachments/assets/9bcb46d3-ed31-4a94-8540-fcf88bc7c529" />
 <img src="https://github.com/user-attachments/assets/f524d311-e47c-489c-86e3-199e68584d45" width="500" />
 
 ---
