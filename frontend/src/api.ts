@@ -13,6 +13,16 @@ export async function fetchSafetyScores(gu: string, dong: string) {
     if (!response.ok) throw new Error('Failed to fetch safety scores');
     return response.json();
 }
+
+// 지반침하위험도평가 API 연동 함수
+// gu, dong 쿼리로 평가 데이터 조회
+export async function fetchSafetyEvaluation(gu: string, dong: string) {
+    const q = new URLSearchParams({ gu, dong }).toString();
+    const response = await fetch(`/api/safety/evalution?${q}`);
+    if (!response.ok) throw new Error('Failed to fetch safety evaluation');
+    return response.json();
+}
+
 // districts API 연동 함수
 export async function fetchDistricts() {
     const response = await fetch('/api/districts');
@@ -72,4 +82,22 @@ export async function fetchGeocode(address: string) {
     const response = await fetch(`/api/geocode?${q}`);
     if (!response.ok) throw new Error('Failed to fetch geocode');
     return response.json();
+}
+
+
+const API_BASE = process.env.REACT_APP_API_BASE;
+
+if (!API_BASE) {
+    throw new Error("REACT_APP_API_BASE 환경변수가 설정되지 않았습니다.");
+}
+
+export async function apiGet(path: string) {
+    const res = await fetch(`${API_BASE}${path}`);
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+    }
+
+    return res.json();
 }
