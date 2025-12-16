@@ -1,37 +1,36 @@
+// 환경변수 설정 (맨 위로)
+const API_BASE = process.env.REACT_APP_API_BASE || '';
+
 // notices API 연동 함수
 export async function fetchNotices() {
-    const response = await fetch('api/notices');
+    const response = await fetch(`${API_BASE}/api/notices`);
     if (!response.ok) throw new Error('Failed to fetch notices');
     return response.json();
 }
 
 // safety API 연동 함수
-// gu, dong 쿼리로 단일 지역 안전점수 조회 (백엔드가 gu,dong 쿼리를 필요로 함)
 export async function fetchSafetyScores(gu: string, dong: string) {
     const q = new URLSearchParams({ gu, dong }).toString();
-    const response = await fetch(`/api/safety?${q}`);
+    const response = await fetch(`${API_BASE}/api/safety?${q}`);
     if (!response.ok) throw new Error('Failed to fetch safety scores');
     return response.json();
 }
 
 // 지반침하위험도평가 API 연동 함수
-// gu, dong 쿼리로 평가 데이터 조회
 export async function fetchSafetyEvaluation(gu: string, dong: string) {
     const q = new URLSearchParams({ gu, dong }).toString();
-    const response = await fetch(`/api/safety/evalution?${q}`);
+    const response = await fetch(`${API_BASE}/api/safety/evalution?${q}`);
     if (!response.ok) throw new Error('Failed to fetch safety evaluation');
     return response.json();
 }
 
 // districts API 연동 함수
 export async function fetchDistricts() {
-    const response = await fetch('/api/districts');
+    const response = await fetch(`${API_BASE}/api/districts`);
     if (!response.ok) throw new Error('Failed to fetch districts');
     const geo = await response.json();
 
-    // Transform GeoJSON FeatureCollection -> simple Zone[] used by Map
-    // Each feature is expected to have geometry.coordinates (Polygon) as [ [ [lng, lat], ... ] ]
-    // and properties.gu, properties.dong, properties.grade
+    // ... 나머지 코드 동일 ...
     const features = geo.features ?? [];
 
     const gradeToDanger: Record<string, number> = {
@@ -47,9 +46,7 @@ export async function fetchDistricts() {
         const dong = props.dong ?? '';
         const grade = (props.grade ?? '').toString().toUpperCase();
 
-        // get polygon coords (first ring)
         const coords = (((f.geometry || {}).coordinates || [])[0] || []);
-        // coords are [ [lng, lat], ... ] — compute centroid by averaging
         let sumLat = 0;
         let sumLng = 0;
         let count = 0;
@@ -68,7 +65,6 @@ export async function fetchDistricts() {
             name: `${gu} ${dong}`.trim(),
             lat,
             lng,
-            // fallback to numeric mapping
             danger: gradeToDanger[grade] ?? 1,
         };
     });
@@ -79,18 +75,12 @@ export async function fetchDistricts() {
 // geocode API 연동 함수
 export async function fetchGeocode(address: string) {
     const q = new URLSearchParams({ q: address }).toString();
-    const response = await fetch(`/api/geocode?${q}`);
+    const response = await fetch(`${API_BASE}/api/geocode?${q}`);
     if (!response.ok) throw new Error('Failed to fetch geocode');
     return response.json();
 }
 
-
-const API_BASE = process.env.REACT_APP_API_BASE;
-
-if (!API_BASE) {
-    throw new Error("REACT_APP_API_BASE 환경변수가 설정되지 않았습니다.");
-}
-
+// apiGet 함수
 export async function apiGet(path: string) {
     const res = await fetch(`${API_BASE}${path}`);
 
